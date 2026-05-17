@@ -80,6 +80,76 @@ Do not prefix Stripe secret keys with `NEXT_PUBLIC_`. They must stay server-only
 
 `SUPABASE_SERVICE_ROLE_KEY` is only used by the server-side webhook route to write verified Stripe events into Supabase. The app still works without it; verified events will be acknowledged but not stored.
 
+## Meta Ads Sync Foundation
+
+Phase 6 adds a manual server-side Meta Marketing API sync endpoint. It does not add scheduled jobs and does not connect GoHighLevel, Notion, or Instagram.
+
+### Meta Environment Variables
+
+Add these to `.env.local` when you are ready to test Meta sync:
+
+```bash
+META_ACCESS_TOKEN=
+META_AD_ACCOUNT_ID=
+```
+
+Do not prefix the Meta token with `NEXT_PUBLIC_`. It must stay server-only.
+
+### Create A Meta Developer App
+
+1. Go to the Meta for Developers dashboard.
+2. Create an app for business/marketing API use.
+3. Add Marketing API access.
+4. Generate an access token with the `ads_read` permission.
+5. Confirm the token can read the ad account you want to sync.
+
+### Find The Ad Account ID
+
+Use Meta Ads Manager or Business Settings to find the ad account ID. The sync helper accepts either:
+
+```bash
+META_AD_ACCOUNT_ID=1234567890
+```
+
+or:
+
+```bash
+META_AD_ACCOUNT_ID=act_1234567890
+```
+
+The implementation normalizes the value to the `act_` format for Graph API calls.
+
+### Run Manual Meta Sync Locally
+
+Start the app:
+
+```bash
+npm run dev
+```
+
+Trigger a manual sync:
+
+```bash
+curl -X POST http://localhost:3000/api/sync/meta
+```
+
+The sync pulls the last 7 days by default from:
+
+- `/{ad_account_id}/campaigns`
+- `/{ad_account_id}/adsets`
+- `/{ad_account_id}/ads`
+- `/{ad_account_id}/insights`
+
+It upserts into:
+
+- `ad_campaigns`
+- `ad_sets`
+- `ads`
+- `ad_daily_metrics`
+- `sync_runs`
+
+Check `/settings/diagnostics` after running the sync. The diagnostics page shows whether Meta env vars are detected, the last Meta sync run, the latest metric row, and any last sync error state.
+
 ### Webhook Endpoint
 
 Create a Stripe webhook endpoint that points to:

@@ -28,6 +28,7 @@ describe("diagnostics helpers", () => {
       stripeSecretKeyDetected: true,
       stripeWebhookSecretDetected: true,
       supabaseServiceRoleDetected: false,
+      metaAdsEnvDetected: false,
     });
     expect(JSON.stringify(status)).not.toContain("real_value");
   });

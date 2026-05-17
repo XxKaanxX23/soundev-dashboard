@@ -1,5 +1,11 @@
 import { getSupabaseServiceRoleClient } from "@/lib/supabase/admin";
-import type { FailedPayment, Refund, SyncRun, Transaction } from "@/lib/types";
+import type {
+  AdDailyMetric,
+  FailedPayment,
+  Refund,
+  SyncRun,
+  Transaction,
+} from "@/lib/types";
 
 type DiagnosticsEnv = Record<string, string | undefined>;
 
@@ -8,6 +14,7 @@ export type DiagnosticsEnvStatus = {
   stripeSecretKeyDetected: boolean;
   stripeWebhookSecretDetected: boolean;
   supabaseServiceRoleDetected: boolean;
+  metaAdsEnvDetected: boolean;
 };
 
 export type DiagnosticSummary = {
@@ -23,6 +30,9 @@ export type DiagnosticsData = {
   lastStripeTransaction: DiagnosticSummary | null;
   lastFailedPayment: DiagnosticSummary | null;
   lastRefund: DiagnosticSummary | null;
+  lastMetaSyncRun: DiagnosticSummary | null;
+  latestMetaMetricRow: DiagnosticSummary | null;
+  metaErrorState: DiagnosticSummary | null;
 };
 
 type DiagnosticRows = {
@@ -30,6 +40,8 @@ type DiagnosticRows = {
   transaction: Transaction | null;
   failedPayment: FailedPayment | null;
   refund: Refund | null;
+  metaSyncRun?: SyncRun | null;
+  metaMetric?: AdDailyMetric | null;
 };
 
 export function getDiagnosticsEnvStatus(
@@ -42,6 +54,7 @@ export function getDiagnosticsEnvStatus(
     stripeSecretKeyDetected: Boolean(env.STRIPE_SECRET_KEY),
     stripeWebhookSecretDetected: Boolean(env.STRIPE_WEBHOOK_SECRET),
     supabaseServiceRoleDetected: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
+    metaAdsEnvDetected: Boolean(env.META_ACCESS_TOKEN && env.META_AD_ACCOUNT_ID),
   };
 }
 
@@ -103,6 +116,28 @@ export function normalizeDiagnosticRows(rows: DiagnosticRows) {
           reason: rows.refund.reason,
         }
       : null,
+    lastMetaSyncRun: rows.metaSyncRun
+      ? {
+          label: rows.metaSyncRun.provider,
+          value: rows.metaSyncRun.status,
+          detail: `${rows.metaSyncRun.records_processed} records processed. Finished ${formatDate(rows.metaSyncRun.finished_at)}.`,
+        }
+      : null,
+    latestMetaMetricRow: rows.metaMetric
+      ? {
+          label: rows.metaMetric.metric_date,
+          value: money(rows.metaMetric.spend_cents, "usd"),
+          detail: `${rows.metaMetric.purchases} purchases and ${money(rows.metaMetric.revenue_cents, "usd")} revenue recorded.`,
+        }
+      : null,
+    metaErrorState:
+      rows.metaSyncRun?.status === "error"
+        ? {
+            label: "Meta Ads",
+            value: "error",
+            detail: rows.metaSyncRun.error_message ?? "Last Meta sync failed.",
+          }
+        : null,
   };
 }
 
@@ -119,12 +154,15 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
         transaction: null,
         failedPayment: null,
         refund: null,
+        metaSyncRun: null,
+        metaMetric: null,
       }),
     };
   }
 
   try {
-    const [syncRun, transaction, failedPayment, refund] = await Promise.all([
+    const [syncRun, transaction, failedPayment, refund, metaSyncRun, metaMetric] =
+      await Promise.all([
       supabase
         .from("sync_runs")
         .select("*")
@@ -150,6 +188,19 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
         .order("refunded_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
+      supabase
+        .from("sync_runs")
+        .select("*")
+        .eq("provider", "Meta Ads")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("ad_daily_metrics")
+        .select("*")
+        .order("metric_date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
     return {
@@ -164,6 +215,10 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
           ? null
           : (failedPayment.data as FailedPayment | null),
         refund: refund.error ? null : (refund.data as Refund | null),
+        metaSyncRun: metaSyncRun.error ? null : (metaSyncRun.data as SyncRun | null),
+        metaMetric: metaMetric.error
+          ? null
+          : (metaMetric.data as AdDailyMetric | null),
       }),
     };
   } catch {
@@ -175,6 +230,8 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
         transaction: null,
         failedPayment: null,
         refund: null,
+        metaSyncRun: null,
+        metaMetric: null,
       }),
     };
   }

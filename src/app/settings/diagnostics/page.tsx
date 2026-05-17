@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { Activity, ArrowLeft, Database, ReceiptText, ShieldCheck } from "lucide-react";
+import {
+  Activity,
+  ArrowLeft,
+  Database,
+  Megaphone,
+  ReceiptText,
+  ShieldCheck,
+} from "lucide-react";
 import { PageSection } from "@/components/dashboard/page-section";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { getDiagnosticsData, type DiagnosticSummary } from "@/lib/diagnostics";
@@ -62,7 +69,7 @@ export default async function DiagnosticsPage() {
 
       <PageSection
         title="Diagnostics"
-        description="Internal setup checks for Stripe webhook testing. Secret values are never displayed."
+        description="Internal setup checks for Stripe and Meta testing. Secret values are never displayed."
       >
         <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
           <section className="rounded-lg border border-white/10 bg-zinc-950 p-4">
@@ -90,6 +97,10 @@ export default async function DiagnosticsPage() {
             <EnvRow
               label="Supabase service role detected"
               value={diagnostics.env.supabaseServiceRoleDetected}
+            />
+            <EnvRow
+              label="Meta Ads env detected"
+              value={diagnostics.env.metaAdsEnvDetected}
             />
             <EnvRow
               label="Supabase admin client available"
@@ -127,6 +138,83 @@ export default async function DiagnosticsPage() {
                 </p>
               </div>
             )}
+          </section>
+        </div>
+
+        <div className="mt-4 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+          <section className="rounded-lg border border-white/10 bg-zinc-950 p-4">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex size-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03]">
+                <Megaphone className="size-4 text-zinc-300" aria-hidden="true" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-zinc-50">Last Meta Sync Run</h2>
+                <p className="text-sm text-zinc-500">
+                  Latest Meta Ads row from the `sync_runs` table.
+                </p>
+              </div>
+            </div>
+            {diagnostics.lastMetaSyncRun ? (
+              <div>
+                <StatusBadge status={diagnostics.lastMetaSyncRun.value} />
+                <p className="mt-3 text-lg font-semibold text-zinc-50">
+                  {diagnostics.lastMetaSyncRun.label}
+                </p>
+                <p className="mt-2 text-sm text-zinc-400">
+                  {diagnostics.lastMetaSyncRun.detail}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-md border border-dashed border-white/10 p-4">
+                <p className="text-sm text-zinc-400">
+                  No Meta sync run found. Run the manual sync endpoint after
+                  Supabase and Meta env vars are configured.
+                </p>
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-lg border border-white/10 bg-zinc-950 p-4">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex size-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03]">
+                <Database className="size-4 text-zinc-300" aria-hidden="true" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-zinc-50">
+                  Latest Meta Metric Row
+                </h2>
+                <p className="text-sm text-zinc-500">
+                  Latest row from `ad_daily_metrics`.
+                </p>
+              </div>
+            </div>
+            {diagnostics.latestMetaMetricRow ? (
+              <div>
+                <p className="text-lg font-semibold text-zinc-50">
+                  {diagnostics.latestMetaMetricRow.value}
+                </p>
+                <p className="mt-2 text-sm text-zinc-400">
+                  {diagnostics.latestMetaMetricRow.label}
+                </p>
+                <p className="mt-2 text-xs leading-5 text-zinc-500">
+                  {diagnostics.latestMetaMetricRow.detail}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-md border border-dashed border-white/10 p-4">
+                <p className="text-sm text-zinc-400">
+                  No Meta daily metric rows found.
+                </p>
+              </div>
+            )}
+            {diagnostics.metaErrorState ? (
+              <div className="mt-4 rounded-md border border-rose-300/20 bg-rose-300/10 p-3">
+                <StatusBadge status={diagnostics.metaErrorState.value} />
+                <p className="mt-2 text-sm text-rose-100">
+                  {diagnostics.metaErrorState.detail}
+                </p>
+              </div>
+            ) : null}
           </section>
         </div>
 
