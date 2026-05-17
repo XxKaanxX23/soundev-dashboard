@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+:root {
+  --background: #000000;
+  --foreground: #f4f4f5;
+  --font-sans-system: Inter, "Segoe UI", Arial, Helvetica, sans-serif;
+  --font-mono-system: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans-system);
+  --font-mono: var(--font-mono-system);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans-system);
+}
+
+::selection {
+  background: #e4e4e7;
+  color: #000000;
+}
