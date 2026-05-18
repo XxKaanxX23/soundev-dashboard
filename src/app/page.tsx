@@ -205,7 +205,7 @@ export default async function OverviewPage() {
           xKey="date"
           lines={[
             { key: "grossRevenue", label: "Gross revenue" },
-            { key: "netRevenue", label: "Net revenue", color: "#a1a1aa" },
+            { key: "netRevenue", label: "Net revenue", color: "var(--sd-accent-bright)" },
           ]}
         />
         <BarChartCard

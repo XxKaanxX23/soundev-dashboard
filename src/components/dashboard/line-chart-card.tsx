@@ -26,7 +26,7 @@ export function LineChartCard<T>({
   lines,
 }: LineChartCardProps<T>) {
   return (
-    <section className="rounded-lg border border-white/10 bg-zinc-950 p-4">
+    <section className="soundev-card soundev-card-hover rounded-lg p-4">
       <h2 className="text-sm font-semibold text-zinc-50">{title}</h2>
       <div className="mt-4 h-72">
         <LineChartRenderer

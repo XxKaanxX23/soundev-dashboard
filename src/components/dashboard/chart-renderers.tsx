@@ -14,6 +14,15 @@ import {
 
 export type ChartDatum = Record<string, string | number>;
 
+const chartColors = {
+  grid: "color-mix(in srgb, var(--sd-border-strong) 55%, transparent)",
+  text: "var(--sd-text-muted)",
+  tooltipBackground: "var(--sd-surface)",
+  tooltipBorder: "var(--sd-border-strong)",
+  tooltipText: "var(--sd-text)",
+  primary: "var(--sd-accent)",
+};
+
 function MeasuredChart({
   children,
 }: {
@@ -73,21 +82,21 @@ export function BarChartRenderer({
           data={data}
           margin={{ left: 0, right: 8, top: 8 }}
         >
-          <CartesianGrid stroke="#27272a" vertical={false} />
-          <XAxis dataKey={xKey} stroke="#71717a" tickLine={false} />
-          <YAxis stroke="#71717a" tickLine={false} width={48} />
+          <CartesianGrid stroke={chartColors.grid} vertical={false} />
+          <XAxis dataKey={xKey} stroke={chartColors.text} tickLine={false} />
+          <YAxis stroke={chartColors.text} tickLine={false} width={48} />
           <Tooltip
             contentStyle={{
-              background: "#09090b",
-              border: "1px solid rgba(255,255,255,.12)",
+              background: chartColors.tooltipBackground,
+              border: `1px solid ${chartColors.tooltipBorder}`,
               borderRadius: 8,
-              color: "#fafafa",
+              color: chartColors.tooltipText,
             }}
           />
           <Bar
             dataKey={yKey}
             name={label ?? yKey}
-            fill="#e4e4e7"
+            fill={chartColors.primary}
             radius={[4, 4, 0, 0]}
           />
         </BarChart>
@@ -118,15 +127,15 @@ export function LineChartRenderer({
           data={data}
           margin={{ left: 0, right: 8, top: 8 }}
         >
-          <CartesianGrid stroke="#27272a" vertical={false} />
-          <XAxis dataKey={xKey} stroke="#71717a" tickLine={false} />
-          <YAxis stroke="#71717a" tickLine={false} width={48} />
+          <CartesianGrid stroke={chartColors.grid} vertical={false} />
+          <XAxis dataKey={xKey} stroke={chartColors.text} tickLine={false} />
+          <YAxis stroke={chartColors.text} tickLine={false} width={48} />
           <Tooltip
             contentStyle={{
-              background: "#09090b",
-              border: "1px solid rgba(255,255,255,.12)",
+              background: chartColors.tooltipBackground,
+              border: `1px solid ${chartColors.tooltipBorder}`,
               borderRadius: 8,
-              color: "#fafafa",
+              color: chartColors.tooltipText,
             }}
           />
           {lines.map((line) => (
@@ -135,7 +144,7 @@ export function LineChartRenderer({
               type="monotone"
               dataKey={line.key}
               name={line.label}
-              stroke={line.color ?? "#f4f4f5"}
+              stroke={line.color ?? chartColors.primary}
               strokeWidth={2}
               dot={false}
             />

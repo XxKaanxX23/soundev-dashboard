@@ -156,8 +156,8 @@ export default async function RevenuePage({
                 href={`/revenue?filter=${filter.value}${search ? `&q=${encodeURIComponent(search)}` : ""}`}
                 className={
                   activeFilter === filter.value
-                    ? "rounded-md border border-white/20 bg-white/10 px-3 py-2 text-sm text-zinc-50"
-                    : "rounded-md border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-zinc-400 transition hover:text-zinc-100"
+                    ? "rounded-md border border-sky-300/35 bg-sd-accent/[0.16] px-3 py-2 text-sm text-sky-100 shadow-[0_0_18px_rgba(47,140,255,0.16)]"
+                    : "soundev-control rounded-md px-3 py-2 text-sm"
                 }
               >
                 {filter.label}
@@ -170,9 +170,9 @@ export default async function RevenuePage({
               name="q"
               defaultValue={search}
               placeholder="Search customer or Stripe ID"
-              className="min-w-0 rounded-md border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-white/25"
+              className="soundev-control min-w-0 rounded-md px-3 py-2 text-sm outline-none placeholder:text-zinc-600"
             />
-            <button className="rounded-md border border-white/10 bg-white/10 px-3 py-2 text-sm text-zinc-100 transition hover:bg-white/15">
+            <button className="soundev-control rounded-md px-3 py-2 text-sm">
               Search
             </button>
           </form>

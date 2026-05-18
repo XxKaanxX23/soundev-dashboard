@@ -6,7 +6,7 @@ const stateConfig = {
     icon: Loader2,
     title: "Loading state",
     body: "Shown while a future connector is fetching fresh records.",
-    className: "border-sky-300/20 bg-sky-300/10",
+    className: "border-sky-300/25 bg-sky-300/10",
   },
   error: {
     icon: AlertCircle,
@@ -18,7 +18,7 @@ const stateConfig = {
     icon: Database,
     title: "Empty state",
     body: "Shown when a source is connected but no matching records exist for the selected date range.",
-    className: "border-zinc-500/30 bg-zinc-500/10",
+    className: "border-sd-border-strong bg-zinc-500/10",
   },
 };
 
@@ -29,7 +29,7 @@ export function ApiStateCard({ state }: { state: keyof typeof stateConfig }) {
   return (
     <article className={cn("rounded-lg border p-4", config.className)}>
       <div className="flex items-start gap-3">
-        <Icon className="mt-0.5 size-4 shrink-0 text-zinc-300" aria-hidden="true" />
+        <Icon className="mt-0.5 size-4 shrink-0 text-sky-300/80" aria-hidden="true" />
         <div>
           <h3 className="text-sm font-semibold text-zinc-100">{config.title}</h3>
           <p className="mt-1 text-sm leading-6 text-zinc-500">{config.body}</p>

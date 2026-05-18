@@ -17,11 +17,11 @@ export function SourceFreshness({
   mode: DataMode;
 }) {
   return (
-    <section className="rounded-lg border border-white/10 bg-zinc-950 p-4">
+    <section className="soundev-card soundev-card-hover rounded-lg p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
-          <div className="flex size-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03]">
-            <Clock3 className="size-4 text-zinc-300" aria-hidden="true" />
+          <div className="soundev-icon flex size-9 items-center justify-center rounded-md">
+            <Clock3 className="size-4" aria-hidden="true" />
           </div>
           <div>
             <p className="text-sm font-semibold text-zinc-50">{provider} freshness</p>

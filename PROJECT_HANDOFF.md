@@ -12,7 +12,7 @@
 
 **Main goal:** Stop checking multiple dashboards manually and make better decisions about revenue, ads, funnel performance, creative testing, attribution, and operational next actions.
 
-The app started as a clean mock-data prototype and has progressed into a Supabase-ready dashboard with live Stripe, Meta Ads, and GoHighLevel foundations. Notion, Instagram, auth, deployment, and scheduled syncs are not connected yet.
+The app started as a clean mock-data prototype and has progressed into a Supabase-ready dashboard with live Stripe, Meta Ads, and GoHighLevel foundations plus a Soundev-specific electric-blue visual theme. Notion, Instagram, auth, deployment, and scheduled syncs are not connected yet.
 
 ## 2. Tech Stack
 
@@ -74,6 +74,46 @@ Reusable dashboard UI lives under `src/components/dashboard`:
 - `next-actions-panel.tsx`
 - `alert-callout.tsx`
 - `page-section.tsx`
+
+### Visual Theme System
+
+Phase 7C centralized the Soundev visual direction in `src/app/globals.css`.
+
+Theme direction:
+
+- black void background
+- cold cinematic electric-blue glow
+- deep blue-black surfaces
+- thin cool-blue borders
+- premium minimal control-room UI
+- subdued amber/red only for warning/error states
+
+Theme tokens live in CSS variables and Tailwind v4 `@theme inline` aliases:
+
+- `--sd-void`
+- `--sd-surface`
+- `--sd-surface-elevated`
+- `--sd-surface-hover`
+- `--sd-border`
+- `--sd-border-strong`
+- `--sd-text`
+- `--sd-text-secondary`
+- `--sd-text-muted`
+- `--sd-accent`
+- `--sd-accent-bright`
+- `--sd-glow`
+- `--sd-glow-soft`
+
+Reusable CSS component classes:
+
+- `.soundev-card`
+- `.soundev-card-hover`
+- `.soundev-subcard`
+- `.soundev-icon`
+- `.soundev-control`
+- `.soundev-divider`
+
+Tailwind zinc/sky/indigo/emerald/amber/rose color aliases were tuned toward the Soundev palette so existing utility classes stay visually coherent.
 
 ### Data Access Layer
 
@@ -294,6 +334,31 @@ Added:
 - README/handoff instructions for manual sync
 
 The sync uses a server-only `GHL_API_KEY` and `GHL_LOCATION_ID`, pulls contacts and opportunities where supported, upserts by `external_id`, and writes `sync_runs`. Activity/event history is not ingested yet; `eventsSynced` returns `0`.
+
+### Phase 7C: Soundev Visual Theme Refresh
+
+Completed a visual-only refresh based on the black void / electric-blue glowing figure direction.
+
+Updated:
+
+- `src/app/globals.css` theme tokens, global background, selection color, focus states, and reusable Soundev classes
+- layout shell background/text treatment
+- Sidebar active states and brand block
+- Header/date range controls
+- KPI cards
+- Data tables
+- Data mode/status badges
+- Source freshness cards
+- Alert callouts
+- Next Actions panel
+- Data Trust panel
+- Data Health panel
+- Source connection cards
+- Chart cards and chart renderer colors
+- Revenue filter/search controls
+- Settings/diagnostics card shells
+
+This phase did not change business logic, data readers, Supabase schema, Stripe sync, Meta sync, GoHighLevel sync, mock fallback behavior, or tests.
 
 ## 6. Current Integrations
 
@@ -590,6 +655,8 @@ Needs work:
 - Keep mock fallback for demo/empty mode, but never mix fake rows with live data.
 - Do not change Stripe webhook/backfill behavior unless explicitly requested.
 - Do not change Meta sync behavior unless explicitly requested.
+- The new theme is tokenized, but some page-level copy/layout can still be refined after seeing real production data density.
+- Cross-device visual QA should be repeated before deployment once real production data density is known.
 
 ## 10. Current Best Next Task
 

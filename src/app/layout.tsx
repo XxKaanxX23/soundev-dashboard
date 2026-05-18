@@ -20,13 +20,13 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body
-        className="min-h-full bg-black text-zinc-50"
+        className="min-h-full bg-sd-void text-sd-text"
         suppressHydrationWarning
       >
         <Sidebar />
         <div className="min-h-screen md:pl-64">
           <Header />
-          <main className="px-4 py-5 md:px-6 md:py-6">{children}</main>
+          <main className="px-4 py-5 md:px-6 md:py-7">{children}</main>
         </div>
       </body>
     </html>

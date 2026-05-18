@@ -3,9 +3,9 @@ import type { MetricAlert } from "@/lib/metrics";
 import { cn } from "@/lib/utils";
 
 const toneStyles = {
-  positive: "border-emerald-400/20 bg-emerald-400/10 text-emerald-100",
-  warning: "border-amber-300/20 bg-amber-300/10 text-amber-100",
-  danger: "border-rose-300/20 bg-rose-300/10 text-rose-100",
+  positive: "border-emerald-400/25 bg-emerald-400/10 text-emerald-100",
+  warning: "border-amber-300/25 bg-amber-300/10 text-amber-100",
+  danger: "border-rose-300/25 bg-rose-300/10 text-rose-100",
 };
 
 export function AlertCallout({ alert }: { alert: MetricAlert }) {
@@ -14,7 +14,7 @@ export function AlertCallout({ alert }: { alert: MetricAlert }) {
   return (
     <article
       className={cn(
-        "rounded-lg border p-4 shadow-sm shadow-black/20",
+        "rounded-lg border p-4",
         toneStyles[alert.tone],
       )}
     >

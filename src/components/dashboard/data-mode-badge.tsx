@@ -8,8 +8,8 @@ const labelByMode: Record<DataMode, string> = {
 };
 
 const classByMode: Record<DataMode, string> = {
-  mock: "border-zinc-500/30 bg-zinc-500/10 text-zinc-300",
-  live: "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",
+  mock: "border-sd-border-strong bg-zinc-500/10 text-zinc-300",
+  live: "border-sky-300/30 bg-sd-accent/[0.15] text-sky-100 shadow-[0_0_16px_rgba(47,140,255,0.16)]",
   partial: "border-amber-300/25 bg-amber-300/10 text-amber-100",
 };
 

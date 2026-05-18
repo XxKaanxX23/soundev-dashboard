@@ -20,10 +20,10 @@ export function DataTable<T>({
   getRowId,
 }: DataTableProps<T>) {
   return (
-    <div className="overflow-hidden rounded-lg border border-white/10 bg-zinc-950">
+    <div className="soundev-card overflow-hidden rounded-lg">
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-white/10 text-sm">
-          <thead className="bg-white/[0.03]">
+        <table className="min-w-full divide-y divide-sd-border text-sm">
+          <thead className="bg-sd-elevated/70">
             <tr>
               {columns.map((column) => (
                 <th
@@ -39,7 +39,7 @@ export function DataTable<T>({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/10">
+          <tbody className="divide-y divide-sd-border">
             {data.length === 0 ? (
               <tr>
                 <td
@@ -55,7 +55,7 @@ export function DataTable<T>({
               const rowKey = getRowId?.(row, index) ?? rowWithId.id ?? `${index}`;
 
               return (
-                <tr key={rowKey} className="hover:bg-white/[0.03]">
+                <tr key={rowKey} className="transition hover:bg-sd-hover/70">
                   {columns.map((column) => {
                     const value =
                       typeof column.accessor === "function"

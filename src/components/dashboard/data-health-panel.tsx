@@ -12,7 +12,7 @@ const iconByStatus = {
 
 export function DataHealthPanel({ items }: { items: DataHealthItem[] }) {
   return (
-    <section className="rounded-lg border border-white/10 bg-zinc-950 p-4 shadow-sm shadow-black/20">
+    <section className="soundev-card rounded-lg p-4">
       <div className="mb-4">
         <h2 className="text-base font-semibold text-zinc-50">Data Health</h2>
         <p className="mt-1 text-sm text-zinc-500">
@@ -24,10 +24,10 @@ export function DataHealthPanel({ items }: { items: DataHealthItem[] }) {
           const Icon = iconByStatus[item.status];
 
           return (
-            <article key={item.source} className="rounded-md border border-white/10 bg-black/30 p-3">
+            <article key={item.source} className="soundev-subcard rounded-md p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
-                  <Icon className="mt-0.5 size-4 shrink-0 text-zinc-500" aria-hidden="true" />
+                  <Icon className="mt-0.5 size-4 shrink-0 text-sky-300/70" aria-hidden="true" />
                   <div>
                     <h3 className="text-sm font-semibold text-zinc-100">{item.source}</h3>
                     <p className="mt-1 text-sm leading-6 text-zinc-500">{item.detail}</p>

@@ -28,10 +28,10 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="border-b border-white/10 bg-zinc-950 md:fixed md:inset-y-0 md:left-0 md:w-64 md:border-b-0 md:border-r">
+    <aside className="border-b border-sd-border bg-black/[0.92] backdrop-blur-xl md:fixed md:inset-y-0 md:left-0 md:w-64 md:border-b-0 md:border-r">
       <div className="flex h-full flex-col">
         <div className="flex items-center gap-3 px-4 py-4 md:px-5 md:py-6">
-          <div className="flex size-9 items-center justify-center rounded-md border border-white/10 bg-white text-black">
+          <div className="soundev-icon flex size-9 items-center justify-center rounded-md">
             <Sparkles className="size-4" aria-hidden="true" />
           </div>
           <div>
@@ -50,8 +50,9 @@ export function Sidebar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "inline-flex min-w-fit items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-zinc-400 transition hover:bg-white/5 hover:text-zinc-50",
-                  isActive && "bg-white text-black hover:bg-white hover:text-black",
+                  "inline-flex min-w-fit items-center gap-2 rounded-md border border-transparent px-3 py-2 text-sm font-medium text-zinc-400 transition hover:border-sd-border hover:bg-sd-hover/70 hover:text-zinc-50",
+                  isActive &&
+                    "border-sd-border-strong bg-sd-accent/[0.12] text-sky-100 shadow-[0_0_22px_rgba(47,140,255,0.16)] hover:bg-sd-accent/[0.16] hover:text-sky-100",
                 )}
               >
                 <Icon className="size-4" aria-hidden="true" />
@@ -60,7 +61,7 @@ export function Sidebar() {
             );
           })}
         </nav>
-        <div className="mt-auto hidden px-5 pb-6 text-xs text-zinc-500 md:block">
+        <div className="mt-auto hidden px-5 pb-6 text-xs leading-5 text-zinc-500 md:block">
           Live Stripe and Meta data when configured. Other sources stay in mock fallback.
         </div>
       </div>

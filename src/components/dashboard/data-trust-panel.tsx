@@ -9,7 +9,7 @@ type DataTrustItem = {
 
 export function DataTrustPanel({ items }: { items: DataTrustItem[] }) {
   return (
-    <section className="rounded-lg border border-white/10 bg-zinc-950 p-4 shadow-sm shadow-black/20">
+    <section className="soundev-card rounded-lg p-4">
       <div className="mb-4">
         <h2 className="text-base font-semibold text-zinc-50">Data Trust</h2>
         <p className="mt-1 text-sm text-zinc-500">
@@ -20,11 +20,11 @@ export function DataTrustPanel({ items }: { items: DataTrustItem[] }) {
         {items.map((item) => (
           <article
             key={item.source}
-            className="rounded-md border border-white/10 bg-black/30 p-3"
+            className="soundev-subcard rounded-md p-3"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="size-4 text-zinc-500" aria-hidden="true" />
+                <ShieldCheck className="size-4 text-sky-300/70" aria-hidden="true" />
                 <h3 className="text-sm font-semibold text-zinc-100">{item.source}</h3>
               </div>
               <StatusBadge status={item.status} />

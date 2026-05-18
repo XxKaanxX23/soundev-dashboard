@@ -26,14 +26,14 @@ export function KPICard({
   tone = "neutral",
 }: KPICardProps) {
   return (
-    <section className="rounded-lg border border-white/10 bg-zinc-950 p-4 shadow-sm shadow-black/20">
+    <section className="soundev-card soundev-card-hover rounded-lg p-4">
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-zinc-500">
           {label}
         </p>
         {helper ? (
           <span
-            className="inline-flex size-5 items-center justify-center rounded-full border border-white/10 text-zinc-500"
+            className="inline-flex size-5 items-center justify-center rounded-full border border-sd-border-strong text-sky-300/80"
             title={helper}
             aria-label={helper}
           >
@@ -45,7 +45,7 @@ export function KPICard({
         {value}
       </p>
       {source ? (
-        <p className="mt-2 text-xs font-medium uppercase tracking-[0.12em] text-zinc-600">
+        <p className="mt-2 text-xs font-medium uppercase tracking-[0.12em] text-sky-300/60">
           Source: {source}
         </p>
       ) : null}

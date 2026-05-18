@@ -20,7 +20,7 @@ function YesNoBadge({ value }: { value: boolean }) {
 
 function EnvRow({ label, value }: { label: string; value: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-white/10 py-3 last:border-b-0">
+    <div className="flex items-center justify-between gap-4 border-b border-sd-border py-3 last:border-b-0">
       <span className="text-sm text-zinc-400">{label}</span>
       <YesNoBadge value={value} />
     </div>
@@ -37,7 +37,7 @@ function DiagnosticCard({
   empty: string;
 }) {
   return (
-    <section className="rounded-lg border border-white/10 bg-zinc-950 p-4">
+    <section className="soundev-card rounded-lg p-4">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-sm font-medium text-zinc-300">{title}</h2>
@@ -45,8 +45,8 @@ function DiagnosticCard({
             {summary?.value ?? "No record"}
           </p>
         </div>
-        <div className="flex size-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03]">
-          <ReceiptText className="size-4 text-zinc-300" aria-hidden="true" />
+        <div className="soundev-icon flex size-9 items-center justify-center rounded-md">
+          <ReceiptText className="size-4" aria-hidden="true" />
         </div>
       </div>
       <p className="mt-3 text-sm text-zinc-400">{summary?.label ?? empty}</p>
@@ -111,10 +111,10 @@ export default async function DiagnosticsPage() {
           <DataModeBadge mode={mode} />
         </div>
         <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-          <section className="rounded-lg border border-white/10 bg-zinc-950 p-4">
+          <section className="soundev-card rounded-lg p-4">
             <div className="mb-3 flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03]">
-                <ShieldCheck className="size-4 text-zinc-300" aria-hidden="true" />
+              <div className="soundev-icon flex size-9 items-center justify-center rounded-md">
+                <ShieldCheck className="size-4" aria-hidden="true" />
               </div>
               <div>
                 <h2 className="font-semibold text-zinc-50">Setup Checks</h2>
@@ -151,10 +151,10 @@ export default async function DiagnosticsPage() {
             />
           </section>
 
-          <section className="rounded-lg border border-white/10 bg-zinc-950 p-4">
+          <section className="soundev-card rounded-lg p-4">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03]">
-                <Activity className="size-4 text-zinc-300" aria-hidden="true" />
+              <div className="soundev-icon flex size-9 items-center justify-center rounded-md">
+                <Activity className="size-4" aria-hidden="true" />
               </div>
               <div>
                 <h2 className="font-semibold text-zinc-50">Last Stripe Sync Run</h2>
@@ -174,7 +174,7 @@ export default async function DiagnosticsPage() {
                 </p>
               </div>
             ) : (
-              <div className="rounded-md border border-dashed border-white/10 p-4">
+              <div className="rounded-md border border-dashed border-sd-border-strong bg-black/25 p-4">
                 <p className="text-sm text-zinc-400">
                   No Stripe sync run found. Trigger a webhook after Supabase is
                   configured.
@@ -185,10 +185,10 @@ export default async function DiagnosticsPage() {
         </div>
 
         <div className="mt-4 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-          <section className="rounded-lg border border-white/10 bg-zinc-950 p-4">
+          <section className="soundev-card rounded-lg p-4">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03]">
-                <Megaphone className="size-4 text-zinc-300" aria-hidden="true" />
+              <div className="soundev-icon flex size-9 items-center justify-center rounded-md">
+                <Megaphone className="size-4" aria-hidden="true" />
               </div>
               <div>
                 <h2 className="font-semibold text-zinc-50">Last Meta Sync Run</h2>
@@ -208,7 +208,7 @@ export default async function DiagnosticsPage() {
                 </p>
               </div>
             ) : (
-              <div className="rounded-md border border-dashed border-white/10 p-4">
+              <div className="rounded-md border border-dashed border-sd-border-strong bg-black/25 p-4">
                 <p className="text-sm text-zinc-400">
                   No Meta sync run found. Run the manual sync endpoint after
                   Supabase and Meta env vars are configured.
@@ -217,10 +217,10 @@ export default async function DiagnosticsPage() {
             )}
           </section>
 
-          <section className="rounded-lg border border-white/10 bg-zinc-950 p-4">
+          <section className="soundev-card rounded-lg p-4">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03]">
-                <Database className="size-4 text-zinc-300" aria-hidden="true" />
+              <div className="soundev-icon flex size-9 items-center justify-center rounded-md">
+                <Database className="size-4" aria-hidden="true" />
               </div>
               <div>
                 <h2 className="font-semibold text-zinc-50">
@@ -244,7 +244,7 @@ export default async function DiagnosticsPage() {
                 </p>
               </div>
             ) : (
-              <div className="rounded-md border border-dashed border-white/10 p-4">
+              <div className="rounded-md border border-dashed border-sd-border-strong bg-black/25 p-4">
                 <p className="text-sm text-zinc-400">
                   No Meta daily metric rows found.
                 </p>
@@ -262,10 +262,10 @@ export default async function DiagnosticsPage() {
         </div>
 
         <div className="mt-4 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-          <section className="rounded-lg border border-white/10 bg-zinc-950 p-4">
+          <section className="soundev-card rounded-lg p-4">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03]">
-                <Users className="size-4 text-zinc-300" aria-hidden="true" />
+              <div className="soundev-icon flex size-9 items-center justify-center rounded-md">
+                <Users className="size-4" aria-hidden="true" />
               </div>
               <div>
                 <h2 className="font-semibold text-zinc-50">
@@ -287,7 +287,7 @@ export default async function DiagnosticsPage() {
                 </p>
               </div>
             ) : (
-              <div className="rounded-md border border-dashed border-white/10 p-4">
+              <div className="rounded-md border border-dashed border-sd-border-strong bg-black/25 p-4">
                 <p className="text-sm text-zinc-400">
                   No GoHighLevel sync run found. Run the manual sync endpoint
                   after Supabase and GoHighLevel env vars are configured.
@@ -304,10 +304,10 @@ export default async function DiagnosticsPage() {
             ) : null}
           </section>
 
-          <section className="rounded-lg border border-white/10 bg-zinc-950 p-4">
+          <section className="soundev-card rounded-lg p-4">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03]">
-                <Database className="size-4 text-zinc-300" aria-hidden="true" />
+              <div className="soundev-icon flex size-9 items-center justify-center rounded-md">
+                <Database className="size-4" aria-hidden="true" />
               </div>
               <div>
                 <h2 className="font-semibold text-zinc-50">
@@ -351,10 +351,10 @@ export default async function DiagnosticsPage() {
           />
         </div>
 
-        <section className="mt-4 rounded-lg border border-white/10 bg-zinc-950 p-4">
+        <section className="mt-4 soundev-card rounded-lg p-4">
           <div className="mb-4 flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03]">
-              <ReceiptText className="size-4 text-zinc-300" aria-hidden="true" />
+            <div className="soundev-icon flex size-9 items-center justify-center rounded-md">
+              <ReceiptText className="size-4" aria-hidden="true" />
             </div>
             <div>
               <h2 className="font-semibold text-zinc-50">
@@ -376,7 +376,7 @@ export default async function DiagnosticsPage() {
               </p>
             </div>
           ) : (
-            <div className="rounded-md border border-dashed border-white/10 p-4">
+            <div className="rounded-md border border-dashed border-sd-border-strong bg-black/25 p-4">
               <p className="text-sm text-zinc-400">
                 No Stripe backfill sync found. Run the manual sync endpoint after
                 Stripe and Supabase env vars are configured.
@@ -385,10 +385,10 @@ export default async function DiagnosticsPage() {
           )}
         </section>
 
-        <section className="mt-4 rounded-lg border border-white/10 bg-zinc-950 p-4">
+        <section className="mt-4 soundev-card rounded-lg p-4">
           <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03]">
-              <Database className="size-4 text-zinc-300" aria-hidden="true" />
+            <div className="soundev-icon flex size-9 items-center justify-center rounded-md">
+              <Database className="size-4" aria-hidden="true" />
             </div>
             <div>
               <h2 className="font-semibold text-zinc-50">Health Endpoint</h2>
@@ -402,3 +402,4 @@ export default async function DiagnosticsPage() {
     </div>
   );
 }
+

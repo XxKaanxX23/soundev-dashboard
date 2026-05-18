@@ -20,11 +20,11 @@ export default async function SettingsPage() {
         </div>
         <Link
           href="/settings/diagnostics"
-          className="mb-6 flex items-start justify-between gap-4 rounded-lg border border-white/10 bg-zinc-950 p-4 transition hover:border-white/20 hover:bg-zinc-900"
+          className="soundev-card soundev-card-hover mb-6 flex items-start justify-between gap-4 rounded-lg p-4"
         >
           <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03]">
-              <Activity className="size-4 text-zinc-300" aria-hidden="true" />
+            <div className="soundev-icon flex size-9 items-center justify-center rounded-md">
+              <Activity className="size-4" aria-hidden="true" />
             </div>
             <div>
               <h2 className="font-semibold text-zinc-50">Diagnostics</h2>
