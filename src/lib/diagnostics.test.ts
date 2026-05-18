@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { getDiagnosticsEnvStatus, normalizeDiagnosticRows } from "./diagnostics";
-import type { FailedPayment, Refund, SyncRun, Transaction } from "./types";
+import type {
+  FailedPayment,
+  GhlContact,
+  GhlOpportunity,
+  Refund,
+  SyncRun,
+  Transaction,
+} from "./types";
 
 const timestamp = "2026-05-17T05:00:00.000Z";
 
@@ -29,6 +36,7 @@ describe("diagnostics helpers", () => {
       stripeWebhookSecretDetected: true,
       supabaseServiceRoleDetected: false,
       metaAdsEnvDetected: false,
+      ghlEnvDetected: false,
     });
     expect(JSON.stringify(status)).not.toContain("real_value");
   });
@@ -124,5 +132,86 @@ describe("diagnostics helpers", () => {
         reason: "requested_by_customer",
       },
     });
+  });
+
+  it("normalizes latest GoHighLevel rows into display-safe diagnostics data", () => {
+    const syncRun: SyncRun = {
+      ...baseRow,
+      source: "gohighlevel",
+      connection_id: null,
+      provider: "GoHighLevel",
+      status: "success",
+      started_at: timestamp,
+      finished_at: timestamp,
+      records_processed: 7,
+      error_message: null,
+    };
+    const contact: GhlContact = {
+      ...baseRow,
+      source: "gohighlevel",
+      email: "lead@soundev.com",
+      first_name: "Lead",
+      last_name: "Owner",
+      name: "Lead Owner",
+      phone: "+15551234567",
+      lead_source: "meta",
+      first_seen_at: timestamp,
+      tags: ["drums"],
+      custom_fields: {},
+      raw_event: { apiKey: "should-not-render" },
+      utm_source: "facebook",
+      utm_medium: "paid_social",
+      utm_campaign: "cold",
+      utm_content: "hook",
+      utm_term: null,
+    };
+    const opportunity: GhlOpportunity = {
+      ...baseRow,
+      source: "gohighlevel",
+      contact_id: "contact_uuid",
+      pipeline_id: "pipeline_1",
+      pipeline_stage_id: "stage_1",
+      pipeline_stage_name: "Checkout Started",
+      pipeline_name: "Drum Mastery Suite",
+      stage_name: "Checkout Started",
+      status: "open",
+      value_cents: 6700,
+      lead_source: "meta",
+      opened_at: timestamp,
+      closed_at: null,
+      last_activity_at: timestamp,
+      raw_event: {},
+      utm_source: "facebook",
+      utm_medium: "paid_social",
+      utm_campaign: "cold",
+      utm_content: "hook",
+      utm_term: null,
+    };
+
+    const result = normalizeDiagnosticRows({
+      syncRun: null,
+      transaction: null,
+      failedPayment: null,
+      refund: null,
+      ghlSyncRun: syncRun,
+      ghlContact: contact,
+      ghlOpportunity: opportunity,
+    });
+
+    expect(result).toMatchObject({
+      lastGhlSyncRun: {
+        label: "GoHighLevel",
+        value: "success",
+      },
+      latestGhlContact: {
+        label: "lead@soundev.com",
+        value: "Lead Owner",
+      },
+      latestGhlOpportunity: {
+        label: "Checkout Started",
+        value: "$67.00",
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain("should-not-render");
   });
 });

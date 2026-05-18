@@ -2,7 +2,7 @@
 
 Private analytics dashboard prototype for Soundev's Drum Mastery Suite.
 
-This app currently runs on mock data only. Stripe, Meta Ads, GoHighLevel, Notion, Instagram, authentication, and Supabase reads/writes are not connected yet.
+This app supports mock/demo mode plus optional server-side live reads from Supabase. Stripe, Meta Ads, and GoHighLevel integration foundations are in place. Notion, Instagram, authentication, deployment, and scheduled syncs are not connected yet.
 
 ## Local Development
 
@@ -54,7 +54,7 @@ The Supabase client helpers live in:
 
 Both helpers return `null` when env vars are missing. That is intentional so the dashboard keeps running locally with mock data.
 
-No real external integrations are connected yet. The schema and TypeScript interfaces are preparation for future ingestion from Stripe, Meta Ads, GoHighLevel, Notion, and Instagram.
+The app still runs without credentials. When Supabase or integration env vars are missing, pages use mock fallback or show disconnected states.
 
 ## Stripe Webhook Foundation
 
@@ -82,7 +82,7 @@ Do not prefix Stripe secret keys with `NEXT_PUBLIC_`. They must stay server-only
 
 ## Meta Ads Sync Foundation
 
-Phase 6 adds a manual server-side Meta Marketing API sync endpoint. It does not add scheduled jobs and does not connect GoHighLevel, Notion, or Instagram.
+Phase 6 adds a manual server-side Meta Marketing API sync endpoint. It does not add scheduled jobs and does not connect Notion or Instagram.
 
 ### Meta Environment Variables
 
@@ -149,6 +149,59 @@ It upserts into:
 - `sync_runs`
 
 Check `/settings/diagnostics` after running the sync. The diagnostics page shows whether Meta env vars are detected, the last Meta sync run, the latest metric row, and any last sync error state.
+
+## GoHighLevel Sync Foundation
+
+Phase 7B adds a manual server-side GoHighLevel/LeadConnector sync endpoint for funnel contacts and opportunities. It does not add scheduled jobs, auth, Notion, or Instagram.
+
+### GoHighLevel Environment Variables
+
+Add these to `.env.local` when you are ready to test GoHighLevel sync:
+
+```bash
+GHL_API_KEY=
+GHL_LOCATION_ID=
+```
+
+Do not prefix the GoHighLevel API key with `NEXT_PUBLIC_`. It must stay server-only.
+
+### Create A Private Integration Token
+
+1. In GoHighLevel/LeadConnector, open the target sub-account/location.
+2. Create or locate a Private Integration token with contact and opportunity read access.
+3. Copy the token into `GHL_API_KEY`.
+4. Copy the location/sub-account ID into `GHL_LOCATION_ID`.
+
+The sync helper sends:
+
+```text
+Authorization: Bearer ${GHL_API_KEY}
+Version: 2021-07-28
+```
+
+### Run Manual GoHighLevel Sync Locally
+
+Start the app:
+
+```bash
+npm run dev
+```
+
+Trigger a manual sync:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/sync/ghl"
+```
+
+The sync pulls contacts and opportunities where supported, then upserts into:
+
+- `ghl_contacts`
+- `ghl_opportunities`
+- `sync_runs`
+
+`eventsSynced` currently returns `0` because the current implementation does not safely ingest GoHighLevel activity/event history yet. The `funnel_events` table exists for a later phase.
+
+Check `/settings/diagnostics` after running the sync. Diagnostics shows GoHighLevel env detection, latest GHL sync run, latest contact, latest opportunity, and last error state. The Funnel page uses live GoHighLevel rows when they exist and otherwise falls back to mock/demo mode.
 
 ### Webhook Endpoint
 

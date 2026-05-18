@@ -12,7 +12,7 @@
 
 **Main goal:** Stop checking multiple dashboards manually and make better decisions about revenue, ads, funnel performance, creative testing, attribution, and operational next actions.
 
-The app started as a clean mock-data prototype and has progressed into a Supabase-ready dashboard with live Stripe and Meta Ads foundations. GoHighLevel, Notion, Instagram, auth, deployment, and scheduled syncs are not connected yet.
+The app started as a clean mock-data prototype and has progressed into a Supabase-ready dashboard with live Stripe, Meta Ads, and GoHighLevel foundations. Notion, Instagram, auth, deployment, and scheduled syncs are not connected yet.
 
 ## 2. Tech Stack
 
@@ -49,7 +49,7 @@ Routes live under `src/app`:
 - `/` - Overview / command center
 - `/revenue` - Stripe revenue events and KPIs
 - `/meta-ads` - Meta Ads performance
-- `/funnel` - GoHighLevel-style funnel placeholder/mock page
+- `/funnel` - GoHighLevel funnel page with live contact/opportunity fallback
 - `/creative-tracker` - Notion-style creative tracker placeholder/mock page
 - `/instagram` - Instagram analytics placeholder/mock page
 - `/settings` - future connection cards
@@ -121,6 +121,7 @@ API routes:
 - `src/app/api/webhooks/stripe/route.ts`
 - `src/app/api/sync/stripe/route.ts`
 - `src/app/api/sync/meta/route.ts`
+- `src/app/api/sync/ghl/route.ts`
 - `src/app/api/health/stripe/route.ts`
 - `src/app/api/debug/data-status/route.ts`
 
@@ -134,7 +135,7 @@ Diagnostics route:
 - File: `src/app/settings/diagnostics/page.tsx`
 - Data helper: `src/lib/diagnostics.ts`
 
-It shows env detection, admin client availability, last sync run, last Stripe transaction, last failed payment, last refund, latest Meta sync, latest Meta metric row, and error states. It never shows secret values.
+It shows env detection, admin client availability, last sync run, last Stripe transaction, last failed payment, last refund, latest Meta sync, latest Meta metric row, latest GoHighLevel sync/contact/opportunity rows, and error states. It never shows secret values.
 
 ### Source Freshness System
 
@@ -165,6 +166,8 @@ STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 META_ACCESS_TOKEN=
 META_AD_ACCOUNT_ID=
+GHL_API_KEY=
+GHL_LOCATION_ID=
 ```
 
 Descriptions:
@@ -176,6 +179,8 @@ Descriptions:
 - `STRIPE_WEBHOOK_SECRET` - Server-only Stripe webhook signing secret.
 - `META_ACCESS_TOKEN` - Server-only Meta Marketing API token.
 - `META_AD_ACCOUNT_ID` - Meta ad account ID. May need `act_` prefix depending on usage.
+- `GHL_API_KEY` - Server-only GoHighLevel/LeadConnector Private Integration token.
+- `GHL_LOCATION_ID` - GoHighLevel location/sub-account ID to sync.
 
 Do not include real values in docs, code, logs, or client bundles.
 
@@ -272,6 +277,24 @@ Added:
 - Data mode improvements
 - Guardrails against fake Stripe rows mixing with live Stripe data
 
+### Phase 7A.1: Data Source Honesty Cleanup
+
+Added Overview source labels, Data Trust panel, UTM attribution warning, and guardrails so mock GoHighLevel funnel numbers are not shown as real before GHL is connected.
+
+### Phase 7B: GoHighLevel Integration Foundation
+
+Added:
+
+- `src/lib/ghl/client.ts`
+- `src/lib/ghl/sync.ts`
+- `/api/sync/ghl`
+- `supabase/migrations/phase-7b-ghl-foundation.sql`
+- GoHighLevel diagnostics
+- Funnel live data reader for `ghl_contacts` and `ghl_opportunities`
+- README/handoff instructions for manual sync
+
+The sync uses a server-only `GHL_API_KEY` and `GHL_LOCATION_ID`, pulls contacts and opportunities where supported, upserts by `external_id`, and writes `sync_runs`. Activity/event history is not ingested yet; `eventsSynced` returns `0`.
+
 ## 6. Current Integrations
 
 ### Stripe
@@ -350,18 +373,54 @@ Known issue/watchout:
 - Meta can report purchases without revenue/action values.
 - Always verify table keys stay based on IDs/dates, not visible names.
 
+### GoHighLevel
+
+Sync route:
+
+- `/api/sync/ghl`
+
+API behavior:
+
+- Uses the current GoHighLevel/LeadConnector API with `Authorization: Bearer ${GHL_API_KEY}` and `Version: 2021-07-28`.
+- Reads contacts through `/contacts/search`.
+- Reads opportunities through `/opportunities/search`.
+- Events/activities are not synced yet; `eventsSynced` is currently `0`.
+
+Tables written:
+
+- `ghl_contacts`
+- `ghl_opportunities`
+- `sync_runs`
+
+Diagnostics behavior:
+
+- `/settings/diagnostics` shows GoHighLevel env detection, latest GHL sync run, latest contact, latest opportunity, and last error state.
+
+What works right now:
+
+- Manual sync foundation exists.
+- `/funnel` reads live GoHighLevel contacts/opportunities when rows exist.
+- Overview shows real leads, opportunity/checkout proxy metrics, and lead-to-purchase only when GoHighLevel rows exist.
+
+Known issue/watchout:
+
+- GoHighLevel field shapes vary across accounts and API versions; verify contact/opportunity mappings against the production location.
+- UTM fields depend on the funnel passing attribution into GoHighLevel.
+- No scheduled sync exists yet.
+
 ### Supabase
 
 Schema files:
 
 - `supabase/schema.sql`
 - `supabase/migrations/phase-6b-stripe-backfill.sql`
+- `supabase/migrations/phase-7b-ghl-foundation.sql`
 
 Important tables:
 
 - Stripe: `transactions`, `failed_payments`, `refunds`
 - Meta: `ad_campaigns`, `ad_sets`, `ads`, `ad_daily_metrics`
-- GHL placeholders: `ghl_contacts`, `ghl_opportunities`, `funnel_events`
+- GoHighLevel: `ghl_contacts`, `ghl_opportunities`, `funnel_events`
 - Notion placeholder: `notion_creatives`
 - Instagram placeholder: `instagram_daily_metrics`
 - Operations: `source_connections`, `sync_runs`
@@ -382,11 +441,11 @@ Live/mock fallback rules:
 - `ad_sets` - Meta ad set metadata.
 - `ads` - Meta ad metadata and creative angle.
 - `ad_daily_metrics` - Meta daily performance rows by ad/date.
-- `sync_runs` - sync history and status for Stripe/Meta/future integrations.
+- `sync_runs` - sync history and status for Stripe/Meta/GoHighLevel/future integrations.
 - `source_connections` - future connection/freshness metadata for source cards.
-- `ghl_contacts` - future GoHighLevel contacts/leads.
-- `ghl_opportunities` - future GoHighLevel pipeline/opportunity rows.
-- `funnel_events` - future funnel stage events from GoHighLevel.
+- `ghl_contacts` - GoHighLevel contacts/leads with attribution fields, tags, custom fields, and raw source payload.
+- `ghl_opportunities` - GoHighLevel pipeline/opportunity rows with stage/status/value fields and raw source payload.
+- `funnel_events` - future funnel stage events from GoHighLevel. It is not written in Phase 7B.
 - `notion_creatives` - future Notion creative tracker rows.
 - `instagram_daily_metrics` - future Instagram account/content metrics.
 
@@ -398,16 +457,17 @@ Current data source:
 
 - Stripe via `getRevenueData`
 - Meta via `getAdsData`
-- Funnel/creative/source-health can still use mock fallback
+- GoHighLevel via `getFunnelData` when contacts/opportunities exist
+- Creative/Instagram/source-health can still use mock fallback
 
 Live or mock:
 
-- Partial live when Stripe/Meta exist and other sources are mock.
+- Partial live when Stripe/Meta/GoHighLevel are mixed with disconnected sources.
 
 Needs work:
 
-- Must stop showing fake funnel metrics as real while GoHighLevel is not connected.
-- Needs clearer per-KPI source trust labels.
+- Continue verifying no disconnected source shows fake metrics as real.
+- Add real date range filtering across all live sources.
 
 ### `/revenue`
 
@@ -447,16 +507,19 @@ Needs work:
 
 Current data source:
 
-- Mock GoHighLevel-style data.
+- Supabase GoHighLevel tables: `ghl_contacts`, `ghl_opportunities`
+- Stripe purchase counts where useful for lead-to-purchase context
 
 Live or mock:
 
-- Mock.
+- Live when `ghl_contacts` rows exist.
+- Partial when only `ghl_opportunities` rows exist.
+- Mock only when no live GoHighLevel rows exist or Supabase is unavailable.
 
 Needs work:
 
-- GoHighLevel integration not connected.
-- Should not be used as real funnel truth yet.
+- Add deeper funnel event/activity ingestion when the schema and GHL endpoint behavior are confirmed.
+- Add date range filtering.
 
 ### `/creative-tracker`
 
@@ -517,8 +580,8 @@ Needs work:
 ## 9. Current Known Issues / Watchouts
 
 - Some pages may still show mock data while live data exists. This must be prevented.
-- Overview may show funnel metrics like Leads or Checkout Starts even though GoHighLevel is not connected.
-- Funnel metrics should show `Not connected` or `Unavailable` until GoHighLevel is live.
+- Overview should show GoHighLevel funnel metrics only when GHL rows exist.
+- Funnel metrics should show live, partial, or mock mode clearly.
 - UTM coverage is currently often 0%, likely because GHL/Stripe metadata is not passing UTMs.
 - Meta may track purchases but not revenue/action_values.
 - Hydration warnings can be caused by browser extensions like Grammarly and can be silenced with `suppressHydrationWarning`.
@@ -530,87 +593,49 @@ Needs work:
 
 ## 10. Current Best Next Task
 
-Recommended next task: **Phase 7A.1: Data Source Honesty Cleanup**
+Recommended next task: **Phase 7B.1: GoHighLevel Field Validation and Attribution QA**
 
 Goal:
 
-- Stop showing fake funnel metrics before GoHighLevel is connected.
-- Make source trust clear on every KPI.
-- Add Data Trust section.
-- Make UTM attribution warning clear.
-- Prevent mock rows from mixing with live Stripe/Meta data.
+- Run the manual GoHighLevel sync against the production location.
+- Compare normalized contacts/opportunities against GoHighLevel UI records.
+- Confirm UTM/custom field mapping.
+- Decide whether `funnel_events` can be populated safely or whether a dedicated activity table is needed.
+- Keep mock/live honesty rules intact.
 
 Use this exact prompt:
 
 ```text
-Implement Phase 7A.1: Data Source Honesty Cleanup.
-
-Current issue:
-Overview now shows live Stripe and Meta data, but it may still display funnel metrics like Leads and Checkout Starts before GoHighLevel is connected. This can mislead the user because Stripe and Meta are live, but funnel data is not.
+Implement Phase 7B.1: GoHighLevel field validation and attribution QA.
 
 Goals:
-1. Prevent mock funnel numbers from appearing as real on the Overview page.
-2. Make every KPI clearly tied to its source.
-3. Keep the dashboard trustworthy before adding GoHighLevel.
+1. Verify Phase 7B GoHighLevel sync output against real GoHighLevel records.
+2. Harden field mappings for contacts, opportunities, custom fields, tags, and UTM attribution.
+3. Keep Overview/Funnel source honesty intact.
 
 Tasks:
-1. Audit Overview page metrics:
-   - Leads
-   - Lead-to-purchase
-   - Checkout starts
-   - UTM coverage
-   - purchases
-   - revenue
-   - spend
-   - profit
-
-2. If GoHighLevel live data is not connected:
-   - Do not show fake lead counts as real.
-   - Show Leads as "Not connected" or "Connect GHL".
-   - Show Lead-to-purchase as "Unavailable".
-   - Show Checkout Starts as "Unavailable" unless derived from real Stripe or Meta data.
-   - Add helper text explaining that funnel metrics require GoHighLevel sync.
-
-3. Add per-card source labels where helpful:
-   - Revenue source: Stripe
-   - Spend source: Meta Ads
-   - Funnel source: GoHighLevel, not connected
-   - Creative source: Notion, not connected
-
-4. Make UTM coverage clear:
-   - If Stripe live data exists but UTM coverage is 0%, show a warning:
-     "Stripe purchases are live, but UTM attribution is missing. Check whether GoHighLevel passes UTM fields into Stripe metadata."
-
-5. Add a Data Trust section:
-   - Stripe: live
-   - Meta Ads: live / partial
-   - GoHighLevel: not connected
-   - Notion: not connected
-   - Instagram: not connected
-
-6. Add tests:
-   - Overview does not display mock lead count when GHL is not connected.
-   - Overview shows unavailable state for lead-to-purchase without GHL.
-   - UTM warning appears when live Stripe purchases have 0% UTM coverage.
-   - Revenue and spend still render from Stripe/Meta live data.
-
+1. Run manual GoHighLevel sync with production env vars.
+2. Inspect latest `ghl_contacts`, `ghl_opportunities`, and `sync_runs` rows.
+3. Compare normalized dashboard rows to GoHighLevel UI data.
+4. Improve mapping only where verified by real payload shape.
+5. Decide whether activity/funnel events can safely populate `funnel_events`; if not, document the limitation.
+6. Add tests for any mapping changes.
 7. Run:
    npm test
    npm run lint
    npm run build
 
 Important:
-Do not add GoHighLevel yet.
-Do not remove mock mode from disconnected pages.
-Do not change Stripe sync.
-Do not change Meta sync.
+Do not expose GHL_API_KEY client-side.
+Do not change Stripe or Meta sync behavior.
+Do not add scheduled sync yet.
 ```
 
-## 11. Roadmap After Phase 7A.1
+## 11. Roadmap After Phase 7B
 
 Recommended order:
 
-1. Phase 7B: GoHighLevel integration
+1. Phase 7B.1: GoHighLevel field validation and attribution QA
 2. Phase 8: Notion creative tracker integration
 3. Phase 9: Basic auth / password gate
 4. Phase 10: Deploy to Vercel
@@ -652,6 +677,12 @@ Meta sync:
 
 ```powershell
 Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/sync/meta"
+```
+
+GoHighLevel sync:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/sync/ghl"
 ```
 
 Stripe historical sync:

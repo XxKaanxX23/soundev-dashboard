@@ -153,6 +153,34 @@ describe("overview data honesty", () => {
     ]);
   });
 
+  it("shows live GoHighLevel funnel metrics only when GHL rows exist", () => {
+    const display = buildOverviewDisplayMetrics({
+      funnelMode: "live",
+      revenueMode: "live",
+      stripePaymentAttempts: 4,
+      leads: 25,
+      leadToPurchaseRate: 0.12,
+      checkoutStarts: 9,
+    });
+    const metrics = buildTrustedOverviewMetrics({
+      funnelMode: "live",
+      grossRevenue: 201,
+      refunds: 0,
+      adSpend: 75,
+      purchases: 3,
+      failedPayments: 1,
+      stripePaymentAttempts: 4,
+      funnelLeads: 25,
+      funnelCheckoutStarts: 9,
+    });
+
+    expect(display.leads.value).toBe("25");
+    expect(display.leadToPurchase.value).toBe("12%");
+    expect(display.checkoutStarts.value).toBe("9");
+    expect(metrics.leads).toBe(25);
+    expect(metrics.checkoutStarts).toBe(9);
+  });
+
   it("adds a UTM warning when live Stripe purchases have no attribution", () => {
     expect(
       buildUtmAttributionAlert({

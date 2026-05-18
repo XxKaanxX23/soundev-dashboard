@@ -150,19 +150,29 @@ export interface GhlContact extends SyncedTableRow, UtmFields {
   email: string;
   first_name: string | null;
   last_name: string | null;
+  name?: string | null;
   phone: string | null;
   lead_source: string | null;
   first_seen_at: string;
+  tags?: Json;
+  custom_fields?: Json;
+  raw_event?: Json;
 }
 
 export interface GhlOpportunity extends SyncedTableRow, UtmFields {
   contact_id: string | null;
+  pipeline_id?: string | null;
+  pipeline_stage_id?: string | null;
+  pipeline_stage_name?: string | null;
   pipeline_name: string;
   stage_name: string;
   status: string;
   value_cents: number;
+  lead_source?: string | null;
   opened_at: string;
   closed_at: string | null;
+  last_activity_at?: string | null;
+  raw_event?: Json;
 }
 
 export interface FunnelEvent extends SyncedTableRow, UtmFields {

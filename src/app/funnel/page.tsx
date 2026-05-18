@@ -3,11 +3,16 @@ import { DataModeBadge } from "@/components/dashboard/data-mode-badge";
 import { DataTable, type DataTableColumn } from "@/components/dashboard/data-table";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { PageSection } from "@/components/dashboard/page-section";
-import { getFunnelData } from "@/lib/data/funnel";
+import {
+  getFunnelData,
+  type FunnelContactRow,
+  type FunnelOpportunityRow,
+  type FunnelSourceRow,
+} from "@/lib/data/funnel";
 import type { FunnelStage } from "@/lib/types";
-import { formatNumber, formatPercent } from "@/lib/utils";
+import { formatCurrency, formatNumber, formatPercent } from "@/lib/utils";
 
-const columns: DataTableColumn<FunnelStage>[] = [
+const stageColumns: DataTableColumn<FunnelStage>[] = [
   { header: "Stage", accessor: "stage" },
   { header: "Count", accessor: (row) => formatNumber(row.count), align: "right" },
   {
@@ -18,49 +23,97 @@ const columns: DataTableColumn<FunnelStage>[] = [
   { header: "Drop-off", accessor: (row) => formatNumber(row.dropOff), align: "right" },
 ];
 
+const sourceColumns: DataTableColumn<FunnelSourceRow>[] = [
+  { header: "Source", accessor: "source" },
+  { header: "Leads", accessor: (row) => formatNumber(row.leads), align: "right" },
+];
+
+const contactColumns: DataTableColumn<FunnelContactRow>[] = [
+  { header: "Name", accessor: "name" },
+  { header: "Email", accessor: "email" },
+  { header: "Phone", accessor: "phone" },
+  { header: "Source", accessor: "source" },
+  { header: "Campaign", accessor: "campaign" },
+  { header: "First seen", accessor: "firstSeenAt" },
+];
+
+const opportunityColumns: DataTableColumn<FunnelOpportunityRow>[] = [
+  { header: "Stage", accessor: "stage" },
+  { header: "Status", accessor: "status" },
+  { header: "Value", accessor: (row) => formatCurrency(row.value), align: "right" },
+  { header: "Source", accessor: "source" },
+  { header: "Opened", accessor: "openedAt" },
+];
+
 export default async function FunnelPage() {
-  const { dashboardSnapshot, funnelStages, mode, overviewMetrics } =
-    await getFunnelData();
+  const {
+    contacts,
+    dashboardSnapshot,
+    funnelStages,
+    mode,
+    opportunities,
+    overviewMetrics,
+    topSources,
+    utmCoverage,
+  } = await getFunnelData();
+  const isLive = mode !== "mock";
 
   return (
     <div className="space-y-6">
       <PageSection
         title="Funnel"
-        description="GoHighLevel-style lead, checkout, purchase, failure, and refund stages."
+        description={
+          isLive
+            ? "GoHighLevel contacts and opportunities with Stripe purchase context."
+            : "Mock GoHighLevel-style funnel data. Connect GoHighLevel to replace this fallback."
+        }
       >
         <div className="mb-4">
           <DataModeBadge mode={mode} />
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <KPICard label="Leads" value={formatNumber(dashboardSnapshot.leads)} />
           <KPICard
-            label="Appointments"
-            value={formatNumber(dashboardSnapshot.appointments)}
-            detail="Not used in this funnel yet"
+            label="Leads"
+            value={formatNumber(dashboardSnapshot.leads)}
+            source={isLive ? "GoHighLevel" : "Mock fallback"}
           />
           <KPICard
-            label="Checkout starts"
-            value={formatNumber(dashboardSnapshot.checkoutStarts)}
+            label="Opportunities"
+            value={formatNumber(opportunities.length || dashboardSnapshot.appointments)}
+            source={isLive ? "GoHighLevel" : "Mock fallback"}
           />
-          <KPICard label="Purchases" value={formatNumber(dashboardSnapshot.successfulPurchases)} />
+          <KPICard
+            label="Purchases"
+            value={formatNumber(dashboardSnapshot.successfulPurchases)}
+            source={isLive ? "Stripe" : "Mock fallback"}
+          />
+          <KPICard
+            label="Lead-to-purchase"
+            value={formatPercent(overviewMetrics.leadToPurchaseRate)}
+            source={isLive ? "GoHighLevel + Stripe" : "Mock fallback"}
+            helper="Lead-to-purchase rate is Stripe purchases divided by GoHighLevel contacts."
+          />
           <KPICard
             label="Failed payments"
             value={formatNumber(dashboardSnapshot.failedPayments)}
+            source={isLive ? "Stripe" : "Mock fallback"}
             detail={formatPercent(overviewMetrics.failedPaymentRate)}
-            helper="Failed payment rate is failed payments divided by checkout starts. It tells you how much buyer intent is being lost at payment."
+            helper="Failed payment rate is failed payments divided by checkout or opportunity volume."
             tone="danger"
           />
           <KPICard
             label="Refunds"
             value={formatNumber(dashboardSnapshot.refunds)}
+            source={isLive ? "Stripe" : "Mock fallback"}
             detail={formatPercent(overviewMetrics.refundRate)}
-            helper="Refund rate is refunds divided by purchases. It helps catch expectation, product fit, or onboarding issues."
+            helper="Refund rate is refunds divided by purchases."
             tone="warning"
           />
           <KPICard
-            label="Lead-to-purchase"
-            value={formatPercent(overviewMetrics.leadToPurchaseRate)}
-            helper="Lead-to-purchase rate shows how many leads eventually become buyers across the funnel."
+            label="UTM coverage"
+            value={formatPercent(utmCoverage.coverageRate)}
+            source={isLive ? "GoHighLevel contacts" : "Mock fallback"}
+            detail={`${utmCoverage.trackedPurchases} of ${utmCoverage.totalPurchases} contacts fully tagged`}
           />
         </div>
       </PageSection>
@@ -73,16 +126,37 @@ export default async function FunnelPage() {
           yKey="count"
           label="Count"
         />
-        <PageSection
-          title="Drop-off points"
-          description="Largest current leak is lead-to-checkout start."
-        >
+        <PageSection title="Stage counts">
+          <DataTable columns={stageColumns} data={funnelStages} />
+        </PageSection>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[.8fr_1.2fr]">
+        <PageSection title="Top lead sources">
           <DataTable
-            columns={columns}
-            data={funnelStages}
+            columns={sourceColumns}
+            data={topSources}
+            emptyMessage="No live GoHighLevel source data yet."
+          />
+        </PageSection>
+        <PageSection title="Latest contacts">
+          <DataTable
+            columns={contactColumns}
+            data={contacts}
+            getRowId={(row) => row.id}
+            emptyMessage="No live GoHighLevel contacts yet."
           />
         </PageSection>
       </div>
+
+      <PageSection title="Latest opportunities">
+        <DataTable
+          columns={opportunityColumns}
+          data={opportunities}
+          getRowId={(row) => row.id}
+          emptyMessage="No live GoHighLevel opportunities yet."
+        />
+      </PageSection>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   Megaphone,
   ReceiptText,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import { DataModeBadge } from "@/components/dashboard/data-mode-badge";
 import { PageSection } from "@/components/dashboard/page-section";
@@ -59,12 +60,16 @@ function DiagnosticCard({
 function diagnosticsMode({
   env,
   latestMetaMetricRow,
+  latestGhlContact,
+  latestGhlOpportunity,
   lastFailedPayment,
   lastRefund,
   lastStripeTransaction,
 }: Awaited<ReturnType<typeof getDiagnosticsData>>): DataMode {
   if (
     latestMetaMetricRow ||
+    latestGhlContact ||
+    latestGhlOpportunity ||
     lastFailedPayment ||
     lastRefund ||
     lastStripeTransaction
@@ -72,7 +77,12 @@ function diagnosticsMode({
     return "live";
   }
 
-  if (env.supabaseEnvDetected || env.metaAdsEnvDetected || env.stripeSecretKeyDetected) {
+  if (
+    env.supabaseEnvDetected ||
+    env.metaAdsEnvDetected ||
+    env.ghlEnvDetected ||
+    env.stripeSecretKeyDetected
+  ) {
     return "partial";
   }
 
@@ -95,7 +105,7 @@ export default async function DiagnosticsPage() {
 
       <PageSection
         title="Diagnostics"
-        description="Internal setup checks for Stripe and Meta testing. Secret values are never displayed."
+        description="Internal setup checks for Stripe, Meta, and GoHighLevel testing. Secret values are never displayed."
       >
         <div className="mb-4">
           <DataModeBadge mode={mode} />
@@ -130,6 +140,10 @@ export default async function DiagnosticsPage() {
             <EnvRow
               label="Meta Ads env detected"
               value={diagnostics.env.metaAdsEnvDetected}
+            />
+            <EnvRow
+              label="GoHighLevel env detected"
+              value={diagnostics.env.ghlEnvDetected}
             />
             <EnvRow
               label="Supabase admin client available"
@@ -244,6 +258,78 @@ export default async function DiagnosticsPage() {
                 </p>
               </div>
             ) : null}
+          </section>
+        </div>
+
+        <div className="mt-4 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+          <section className="rounded-lg border border-white/10 bg-zinc-950 p-4">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex size-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03]">
+                <Users className="size-4 text-zinc-300" aria-hidden="true" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-zinc-50">
+                  Last GoHighLevel Sync Run
+                </h2>
+                <p className="text-sm text-zinc-500">
+                  Latest GoHighLevel row from the `sync_runs` table.
+                </p>
+              </div>
+            </div>
+            {diagnostics.lastGhlSyncRun ? (
+              <div>
+                <StatusBadge status={diagnostics.lastGhlSyncRun.value} />
+                <p className="mt-3 text-lg font-semibold text-zinc-50">
+                  {diagnostics.lastGhlSyncRun.label}
+                </p>
+                <p className="mt-2 text-sm text-zinc-400">
+                  {diagnostics.lastGhlSyncRun.detail}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-md border border-dashed border-white/10 p-4">
+                <p className="text-sm text-zinc-400">
+                  No GoHighLevel sync run found. Run the manual sync endpoint
+                  after Supabase and GoHighLevel env vars are configured.
+                </p>
+              </div>
+            )}
+            {diagnostics.ghlErrorState ? (
+              <div className="mt-4 rounded-md border border-rose-300/20 bg-rose-300/10 p-3">
+                <StatusBadge status={diagnostics.ghlErrorState.value} />
+                <p className="mt-2 text-sm text-rose-100">
+                  {diagnostics.ghlErrorState.detail}
+                </p>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="rounded-lg border border-white/10 bg-zinc-950 p-4">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex size-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03]">
+                <Database className="size-4 text-zinc-300" aria-hidden="true" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-zinc-50">
+                  Latest GoHighLevel Records
+                </h2>
+                <p className="text-sm text-zinc-500">
+                  Latest rows from `ghl_contacts` and `ghl_opportunities`.
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <DiagnosticCard
+                title="Latest GHL Contact"
+                summary={diagnostics.latestGhlContact}
+                empty="No GoHighLevel contact stored yet."
+              />
+              <DiagnosticCard
+                title="Latest GHL Opportunity"
+                summary={diagnostics.latestGhlOpportunity}
+                empty="No GoHighLevel opportunity stored yet."
+              />
+            </div>
           </section>
         </div>
 

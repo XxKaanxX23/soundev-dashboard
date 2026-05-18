@@ -2,6 +2,8 @@ import { getSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import type {
   AdDailyMetric,
   FailedPayment,
+  GhlContact,
+  GhlOpportunity,
   Refund,
   SyncRun,
   Transaction,
@@ -15,6 +17,7 @@ export type DiagnosticsEnvStatus = {
   stripeWebhookSecretDetected: boolean;
   supabaseServiceRoleDetected: boolean;
   metaAdsEnvDetected: boolean;
+  ghlEnvDetected: boolean;
 };
 
 export type DiagnosticSummary = {
@@ -34,6 +37,10 @@ export type DiagnosticsData = {
   lastMetaSyncRun: DiagnosticSummary | null;
   latestMetaMetricRow: DiagnosticSummary | null;
   metaErrorState: DiagnosticSummary | null;
+  lastGhlSyncRun: DiagnosticSummary | null;
+  latestGhlContact: DiagnosticSummary | null;
+  latestGhlOpportunity: DiagnosticSummary | null;
+  ghlErrorState: DiagnosticSummary | null;
 };
 
 type DiagnosticRows = {
@@ -44,6 +51,9 @@ type DiagnosticRows = {
   stripeBackfillSyncRun?: SyncRun | null;
   metaSyncRun?: SyncRun | null;
   metaMetric?: AdDailyMetric | null;
+  ghlSyncRun?: SyncRun | null;
+  ghlContact?: GhlContact | null;
+  ghlOpportunity?: GhlOpportunity | null;
 };
 
 export function getDiagnosticsEnvStatus(
@@ -57,6 +67,7 @@ export function getDiagnosticsEnvStatus(
     stripeWebhookSecretDetected: Boolean(env.STRIPE_WEBHOOK_SECRET),
     supabaseServiceRoleDetected: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
     metaAdsEnvDetected: Boolean(env.META_ACCESS_TOKEN && env.META_AD_ACCOUNT_ID),
+    ghlEnvDetected: Boolean(env.GHL_API_KEY && env.GHL_LOCATION_ID),
   };
 }
 
@@ -149,6 +160,42 @@ export function normalizeDiagnosticRows(rows: DiagnosticRows) {
             detail: rows.metaSyncRun.error_message ?? "Last Meta sync failed.",
           }
         : null,
+    lastGhlSyncRun: rows.ghlSyncRun
+      ? {
+          label: rows.ghlSyncRun.provider,
+          value: rows.ghlSyncRun.status,
+          detail: `${rows.ghlSyncRun.records_processed} records processed. Finished ${formatDate(rows.ghlSyncRun.finished_at)}.`,
+        }
+      : null,
+    latestGhlContact: rows.ghlContact
+      ? {
+          label: rows.ghlContact.email,
+          value:
+            rows.ghlContact.name ??
+            [rows.ghlContact.first_name, rows.ghlContact.last_name]
+              .filter(Boolean)
+              .join(" ") ??
+            "Contact",
+          detail: `First seen ${formatDate(rows.ghlContact.first_seen_at)}. Source: ${rows.ghlContact.lead_source ?? rows.ghlContact.utm_source ?? "Untracked"}.`,
+        }
+      : null,
+    latestGhlOpportunity: rows.ghlOpportunity
+      ? {
+          label:
+            rows.ghlOpportunity.pipeline_stage_name ??
+            rows.ghlOpportunity.stage_name,
+          value: money(rows.ghlOpportunity.value_cents, "usd"),
+          detail: `${rows.ghlOpportunity.status} opportunity opened ${formatDate(rows.ghlOpportunity.opened_at)}.`,
+        }
+      : null,
+    ghlErrorState:
+      rows.ghlSyncRun?.status === "error"
+        ? {
+            label: "GoHighLevel",
+            value: "error",
+            detail: rows.ghlSyncRun.error_message ?? "Last GoHighLevel sync failed.",
+          }
+        : null,
   };
 }
 
@@ -168,6 +215,9 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
         stripeBackfillSyncRun: null,
         metaSyncRun: null,
         metaMetric: null,
+        ghlSyncRun: null,
+        ghlContact: null,
+        ghlOpportunity: null,
       }),
     };
   }
@@ -181,6 +231,9 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
       stripeBackfillSyncRun,
       metaSyncRun,
       metaMetric,
+      ghlSyncRun,
+      ghlContact,
+      ghlOpportunity,
     ] =
       await Promise.all([
       supabase
@@ -229,6 +282,25 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
         .order("metric_date", { ascending: false })
         .limit(1)
         .maybeSingle(),
+      supabase
+        .from("sync_runs")
+        .select("*")
+        .eq("provider", "GoHighLevel")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("ghl_contacts")
+        .select("*")
+        .order("first_seen_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("ghl_opportunities")
+        .select("*")
+        .order("opened_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
     return {
@@ -250,6 +322,11 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
         metaMetric: metaMetric.error
           ? null
           : (metaMetric.data as AdDailyMetric | null),
+        ghlSyncRun: ghlSyncRun.error ? null : (ghlSyncRun.data as SyncRun | null),
+        ghlContact: ghlContact.error ? null : (ghlContact.data as GhlContact | null),
+        ghlOpportunity: ghlOpportunity.error
+          ? null
+          : (ghlOpportunity.data as GhlOpportunity | null),
       }),
     };
   } catch {
@@ -264,6 +341,9 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
         stripeBackfillSyncRun: null,
         metaSyncRun: null,
         metaMetric: null,
+        ghlSyncRun: null,
+        ghlContact: null,
+        ghlOpportunity: null,
       }),
     };
   }
