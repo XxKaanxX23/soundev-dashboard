@@ -1,5 +1,5 @@
 import { Activity, AlertCircle, Database, Loader2 } from "lucide-react";
-import type { DataHealthItem } from "@/lib/mock-data";
+import type { DataHealthItem } from "@/lib/types";
 import { StatusBadge } from "./status-badge";
 
 const iconByStatus = {
@@ -16,7 +16,7 @@ export function DataHealthPanel({ items }: { items: DataHealthItem[] }) {
       <div className="mb-4">
         <h2 className="text-base font-semibold text-zinc-50">Data Health</h2>
         <p className="mt-1 text-sm text-zinc-500">
-          Future connection states shown with mock data only.
+          Source connection status and sync freshness for the dashboard.
         </p>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">

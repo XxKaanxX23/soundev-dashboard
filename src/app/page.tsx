@@ -7,7 +7,9 @@ import { KPICard } from "@/components/dashboard/kpi-card";
 import { LineChartCard } from "@/components/dashboard/line-chart-card";
 import { NextActionsPanel } from "@/components/dashboard/next-actions-panel";
 import { PageSection } from "@/components/dashboard/page-section";
+import { SourceFreshness } from "@/components/dashboard/source-freshness";
 import { StatusBadge } from "@/components/dashboard/status-badge";
+import { getSourceFreshness } from "@/lib/data/freshness";
 import { getOverviewData } from "@/lib/data/overview";
 import type { MetaAd } from "@/lib/types";
 import {
@@ -29,7 +31,13 @@ const topAdColumns: DataTableColumn<MetaAd>[] = [
 ];
 
 export default async function OverviewPage() {
+  const [overview, stripeFreshness, metaFreshness] = await Promise.all([
+    getOverviewData(),
+    getSourceFreshness("Stripe"),
+    getSourceFreshness("Meta Ads"),
+  ]);
   const {
+    breakEvenCPA,
     channelRevenue,
     dataHealthItems,
     dashboardSnapshot,
@@ -39,8 +47,9 @@ export default async function OverviewPage() {
     nextActions,
     overviewMetrics,
     revenueTrend,
+    stripeFees,
     utmCoverage,
-  } = await getOverviewData();
+  } = overview;
 
   return (
     <div className="space-y-6">
@@ -56,6 +65,22 @@ export default async function OverviewPage() {
             7-day operating view for Drum Mastery Suite at a $67 price point.
           </p>
         </div>
+        <div className="mb-6 grid gap-3 lg:grid-cols-2">
+          <SourceFreshness
+            provider="Stripe"
+            mode={mode}
+            label={stripeFreshness.label}
+            detail={stripeFreshness.detail}
+            status={stripeFreshness.status}
+          />
+          <SourceFreshness
+            provider="Meta Ads"
+            mode={mode}
+            label={metaFreshness.label}
+            detail={metaFreshness.detail}
+            status={metaFreshness.status}
+          />
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KPICard label="Gross revenue" value={formatCurrency(overviewMetrics.grossRevenue)} />
           <KPICard label="Net revenue" value={formatCurrency(overviewMetrics.netRevenue)} />
@@ -64,6 +89,16 @@ export default async function OverviewPage() {
             label="Estimated profit"
             value={formatCurrency(overviewMetrics.estimatedProfit)}
             tone="positive"
+          />
+          <KPICard
+            label="Est. Stripe fees"
+            value={formatCurrencyPrecise(stripeFees)}
+            helper="Estimated using 2.9% plus $0.30 per successful payment. This is a planning estimate, not an accounting ledger."
+          />
+          <KPICard
+            label="Break-even CPA"
+            value={formatCurrencyPrecise(breakEvenCPA)}
+            helper="Break-even CPA is product price minus estimated Stripe fee per purchase."
           />
           <KPICard label="Purchases" value={formatNumber(overviewMetrics.purchases)} />
           <KPICard
@@ -113,7 +148,7 @@ export default async function OverviewPage() {
 
       <PageSection
         title="Warnings and opportunities"
-        description="These callouts are generated from mock thresholds for CPA, ROAS, failed payments, refunds, and creative winners."
+        description="These callouts are generated from the current dashboard metrics and trust checks."
       >
         <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
           {metricAlerts.map((alert) => (

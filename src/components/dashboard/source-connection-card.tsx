@@ -1,5 +1,5 @@
 import { PlugZap } from "lucide-react";
-import type { SourceConnection } from "@/lib/mock-data";
+import type { SourceConnection } from "@/lib/types";
 import { StatusBadge } from "./status-badge";
 
 export function SourceConnectionCard({

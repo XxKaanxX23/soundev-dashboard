@@ -42,12 +42,7 @@ export type MetricAlertInput = {
 };
 
 export type MetricAlert = {
-  id:
-    | "high-cpa"
-    | "low-roas"
-    | "high-failed-payment-rate"
-    | "high-refund-rate"
-    | "creative-winner";
+  id: string;
   title: string;
   message: string;
   tone: "warning" | "danger" | "positive";

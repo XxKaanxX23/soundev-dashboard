@@ -1,4 +1,5 @@
 import { DataTable, type DataTableColumn } from "@/components/dashboard/data-table";
+import { DataModeBadge } from "@/components/dashboard/data-mode-badge";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { PageSection } from "@/components/dashboard/page-section";
 import { getInstagramData } from "@/lib/data/instagram";
@@ -19,14 +20,17 @@ const columns: DataTableColumn<InstagramPost>[] = [
 ];
 
 export default async function InstagramPage() {
-  const { instagramPosts, instagramSummary } = await getInstagramData();
+  const { instagramPosts, instagramSummary, mode } = await getInstagramData();
 
   return (
     <div className="space-y-6">
       <PageSection
         title="Instagram"
-        description="Mock Instagram analytics for organic reach, profile intent, and top content."
+        description="Instagram analytics for organic reach, profile intent, and top content."
       >
+        <div className="mb-4">
+          <DataModeBadge mode={mode} />
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KPICard label="Followers" value={formatNumber(instagramSummary.followers)} />
           <KPICard label="Reach" value={formatNumber(instagramSummary.reach)} />

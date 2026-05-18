@@ -1,4 +1,5 @@
 import { DataTable, type DataTableColumn } from "@/components/dashboard/data-table";
+import { DataModeBadge } from "@/components/dashboard/data-mode-badge";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { PageSection } from "@/components/dashboard/page-section";
 import { StatusBadge } from "@/components/dashboard/status-badge";
@@ -21,7 +22,7 @@ const columns: DataTableColumn<CreativeIdea>[] = [
 ];
 
 export default async function CreativeTrackerPage() {
-  const { creativeIdeas } = await getCreativeData();
+  const { creativeIdeas, mode } = await getCreativeData();
   const launched = creativeIdeas.filter((idea) =>
     ["launched", "winner", "loser"].includes(idea.status),
   ).length;
@@ -36,8 +37,11 @@ export default async function CreativeTrackerPage() {
     <div className="space-y-6">
       <PageSection
         title="Creative Tracker"
-        description="Mock Notion-style creative pipeline for hooks, formats, statuses, and linked ad performance."
+        description="Notion-style creative pipeline for hooks, formats, statuses, and linked ad performance."
       >
+        <div className="mb-4">
+          <DataModeBadge mode={mode} />
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KPICard label="Ideas tracked" value={formatNumber(creativeIdeas.length)} />
           <KPICard label="Launched" value={formatNumber(launched)} />

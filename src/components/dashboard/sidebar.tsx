@@ -61,7 +61,7 @@ export function Sidebar() {
           })}
         </nav>
         <div className="mt-auto hidden px-5 pb-6 text-xs text-zinc-500 md:block">
-          Mock data only. API connectors are placeholders.
+          Live Stripe and Meta data when configured. Other sources stay in mock fallback.
         </div>
       </div>
     </aside>

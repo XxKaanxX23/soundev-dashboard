@@ -1,4 +1,5 @@
 import { BarChartCard } from "@/components/dashboard/bar-chart-card";
+import { DataModeBadge } from "@/components/dashboard/data-mode-badge";
 import { DataTable, type DataTableColumn } from "@/components/dashboard/data-table";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { PageSection } from "@/components/dashboard/page-section";
@@ -18,15 +19,18 @@ const columns: DataTableColumn<FunnelStage>[] = [
 ];
 
 export default async function FunnelPage() {
-  const { dashboardSnapshot, funnelStages, overviewMetrics } =
+  const { dashboardSnapshot, funnelStages, mode, overviewMetrics } =
     await getFunnelData();
 
   return (
     <div className="space-y-6">
       <PageSection
         title="Funnel"
-        description="Mock GoHighLevel-style lead, checkout, purchase, failure, and refund stages."
+        description="GoHighLevel-style lead, checkout, purchase, failure, and refund stages."
       >
+        <div className="mb-4">
+          <DataModeBadge mode={mode} />
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KPICard label="Leads" value={formatNumber(dashboardSnapshot.leads)} />
           <KPICard

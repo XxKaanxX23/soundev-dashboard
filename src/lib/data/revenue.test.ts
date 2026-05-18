@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildRevenueDataFromRows, normalizeTransactions } from "./revenue";
+import {
+  buildRevenueDataFromRows,
+  containsKnownMockStripeMarker,
+  filterDisplayableStripeRows,
+  hasLiveStripeData,
+  hasRevenueReadEnv,
+  normalizeTransactions,
+  selectRevenueReadClient,
+} from "./revenue";
 import type { FailedPayment, Refund, Transaction } from "@/lib/types";
 
 const baseTransaction: Transaction = {
@@ -72,6 +80,24 @@ const baseRefund: Refund = {
 };
 
 describe("revenue normalization", () => {
+  it("prefers a service role Supabase client for private Stripe reads", () => {
+    const adminClient = { type: "service_role" };
+    const anonClient = { type: "anon" };
+
+    expect(selectRevenueReadClient(adminClient, anonClient)).toBe(adminClient);
+    expect(selectRevenueReadClient(null, anonClient)).toBe(anonClient);
+  });
+
+  it("allows revenue reads when service role env exists without anon key", () => {
+    expect(
+      hasRevenueReadEnv({
+        NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: "",
+        SUPABASE_SERVICE_ROLE_KEY: "service-role",
+      }),
+    ).toBe(true);
+  });
+
   it("normalizes transaction rows into dashboard transaction data", () => {
     expect(normalizeTransactions([baseTransaction])).toEqual([
       expect.objectContaining({
@@ -119,6 +145,72 @@ describe("revenue normalization", () => {
     ]);
   });
 
+  it("filters Stripe CLI and placeholder-email rows out of dashboard revenue", () => {
+    const stripeCliTransaction: Transaction = {
+      ...baseTransaction,
+      id: "row_cli",
+      external_id: "pi_cli",
+      customer_email: "stripe@example.com",
+      raw_event: { livemode: false },
+    };
+    const unknownEmailTransaction: Transaction = {
+      ...baseTransaction,
+      id: "row_unknown",
+      external_id: "pi_unknown",
+      customer_email: "unknown@soundev.local",
+      raw_event: { livemode: true },
+    };
+    const liveTransaction: Transaction = {
+      ...baseTransaction,
+      id: "row_live",
+      external_id: "pi_live",
+      customer_email: "real@soundev.com",
+      raw_event: { livemode: true },
+    };
+
+    const filtered = filterDisplayableStripeRows({
+      transactions: [stripeCliTransaction, unknownEmailTransaction, liveTransaction],
+      failedPayments: [
+        {
+          ...baseFailedPayment,
+          customer_email: "unknown@soundev.local",
+          raw_event: { data: { object: { livemode: false } } },
+        },
+      ],
+      refunds: [
+        {
+          ...baseRefund,
+          customer_email: "stripe@example.com",
+          raw_event: { livemode: false },
+        },
+      ],
+    });
+
+    expect(filtered.transactions).toEqual([liveTransaction]);
+    expect(filtered.failedPayments).toEqual([]);
+    expect(filtered.refunds).toEqual([]);
+  });
+
+  it("does not fall back to mock rows when all live Stripe rows are filtered as test data", () => {
+    const result = buildRevenueDataFromRows({
+      transactions: [
+        {
+          ...baseTransaction,
+          customer_email: "stripe@example.com",
+          raw_event: { livemode: false },
+        },
+      ],
+      failedPayments: [],
+      refunds: [],
+    });
+
+    expect(result.mode).toBe("partial");
+    expect(result.stripeTransactions).toEqual([]);
+    expect(result.dashboardSnapshot.successfulPurchases).toBe(0);
+    expect(result.overviewMetrics.grossRevenue).toBe(0);
+    expect(containsKnownMockStripeMarker(result.stripeTransactions)).toBe(false);
+  });
+
   it("returns live mode when transactions exist without refunds or failed payments", () => {
     const result = buildRevenueDataFromRows({
       transactions: [baseTransaction],
@@ -132,6 +224,25 @@ describe("revenue normalization", () => {
       failedPayments: 0,
       refunds: 0,
     });
+    expect(result.stripeTransactions.map((row) => row.customerEmail)).not.toContain(
+      "mara@beatlab.co",
+    );
+  });
+
+  it("returns partial mode without mock customers when only failed payments exist", () => {
+    const result = buildRevenueDataFromRows({
+      transactions: [],
+      failedPayments: [baseFailedPayment],
+      refunds: [],
+    });
+
+    expect(result.mode).toBe("partial");
+    expect(result.stripeTransactions).toHaveLength(1);
+    expect(result.stripeTransactions[0]).toMatchObject({
+      status: "failed",
+      customerEmail: "declined@soundev.com",
+    });
+    expect(containsKnownMockStripeMarker(result.stripeTransactions)).toBe(false);
   });
 
   it("returns partial mode when only refunds exist", () => {
@@ -148,6 +259,7 @@ describe("revenue normalization", () => {
       amount: 67,
       netAmount: -67,
     });
+    expect(containsKnownMockStripeMarker(result.stripeTransactions)).toBe(false);
   });
 
   it("returns mock mode when all live Stripe tables are empty", () => {
@@ -158,5 +270,36 @@ describe("revenue normalization", () => {
     });
 
     expect(result.mode).toBe("mock");
+  });
+
+  it("detects live Stripe rows across transactions, failed payments, or refunds", () => {
+    expect(
+      hasLiveStripeData({
+        transactions: [baseTransaction],
+        failedPayments: [],
+        refunds: [],
+      }),
+    ).toBe(true);
+    expect(
+      hasLiveStripeData({
+        transactions: [],
+        failedPayments: [baseFailedPayment],
+        refunds: [],
+      }),
+    ).toBe(true);
+    expect(
+      hasLiveStripeData({
+        transactions: [],
+        failedPayments: [],
+        refunds: [baseRefund],
+      }),
+    ).toBe(true);
+    expect(
+      hasLiveStripeData({
+        transactions: [],
+        failedPayments: [],
+        refunds: [],
+      }),
+    ).toBe(false);
   });
 });

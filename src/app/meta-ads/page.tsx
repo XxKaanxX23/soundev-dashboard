@@ -2,8 +2,10 @@ import { DataTable, type DataTableColumn } from "@/components/dashboard/data-tab
 import { DataModeBadge } from "@/components/dashboard/data-mode-badge";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { PageSection } from "@/components/dashboard/page-section";
+import { SourceFreshness } from "@/components/dashboard/source-freshness";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { getAdsData } from "@/lib/data/ads";
+import { getSourceFreshness } from "@/lib/data/freshness";
 import type { MetaAd } from "@/lib/types";
 import {
   formatCurrency,
@@ -19,6 +21,7 @@ const columns: DataTableColumn<MetaAd>[] = [
   { header: "Campaign", accessor: "campaign" },
   { header: "Ad set", accessor: "adSet" },
   { header: "Ad name", accessor: "adName" },
+  { header: "Date", accessor: "dateStart" },
   { header: "Spend", accessor: (row) => formatCurrency(row.spend), align: "right" },
   { header: "Impressions", accessor: (row) => formatNumber(row.impressions), align: "right" },
   { header: "Clicks", accessor: (row) => formatNumber(row.clicks), align: "right" },
@@ -30,6 +33,7 @@ const columns: DataTableColumn<MetaAd>[] = [
   { header: "Revenue", accessor: (row) => formatCurrency(row.revenue), align: "right" },
   { header: "ROAS", accessor: (row) => formatRatio(row.roas), align: "right" },
   { header: "Status", accessor: (row) => <StatusBadge status={row.status} /> },
+  { header: "Signal", accessor: (row) => <StatusBadge status={row.signal ?? "No Signal Yet"} /> },
   { header: "Creative angle", accessor: "creativeAngle" },
 ];
 
@@ -38,7 +42,10 @@ function metaAdRowKey(row: MetaAd, index: number) {
 }
 
 export default async function MetaAdsPage() {
-  const { metaAds, mode, overviewMetrics } = await getAdsData();
+  const [{ metaAds, mode, overviewMetrics }, freshness] = await Promise.all([
+    getAdsData(),
+    getSourceFreshness("Meta Ads"),
+  ]);
   const totalImpressions = metaAds.reduce((sum, ad) => sum + ad.impressions, 0);
   const totalClicks = metaAds.reduce((sum, ad) => sum + ad.clicks, 0);
   const averageCtr = totalImpressions === 0 ? 0 : totalClicks / totalImpressions;
@@ -47,6 +54,13 @@ export default async function MetaAdsPage() {
 
   return (
     <div className="space-y-6">
+      <SourceFreshness
+        provider="Meta Ads"
+        mode={mode}
+        label={freshness.label}
+        detail={freshness.detail}
+        status={freshness.status}
+      />
       <PageSection
         title="Meta Ads"
         description="Ad account performance by campaign, ad set, ad, and creative angle."
@@ -87,6 +101,7 @@ export default async function MetaAdsPage() {
           columns={columns}
           data={metaAds}
           getRowId={metaAdRowKey}
+          emptyMessage="No Meta ad rows found for this period."
         />
       </PageSection>
     </div>

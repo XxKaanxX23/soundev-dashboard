@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { Activity } from "lucide-react";
 import { ApiStateCard } from "@/components/dashboard/api-state-card";
+import { DataModeBadge } from "@/components/dashboard/data-mode-badge";
 import { PageSection } from "@/components/dashboard/page-section";
 import { SourceConnectionCard } from "@/components/dashboard/source-connection-card";
 import { getSettingsData } from "@/lib/data/settings";
 
 export default async function SettingsPage() {
-  const { sourceConnections } = await getSettingsData();
+  const { mode, sourceConnections } = await getSettingsData();
 
   return (
     <div className="space-y-6">
@@ -14,6 +15,9 @@ export default async function SettingsPage() {
         title="Settings"
         description="Future source connections are represented with mock connection states only."
       >
+        <div className="mb-4">
+          <DataModeBadge mode={mode} />
+        </div>
         <Link
           href="/settings/diagnostics"
           className="mb-6 flex items-start justify-between gap-4 rounded-lg border border-white/10 bg-zinc-950 p-4 transition hover:border-white/20 hover:bg-zinc-900"

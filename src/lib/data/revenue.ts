@@ -11,17 +11,56 @@ import {
   calculateRoas,
   type BusinessMetrics,
 } from "@/lib/metrics";
+import { getSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type {
   FailedPayment,
+  Json,
   Refund,
   StripeTransaction,
   Transaction,
 } from "@/lib/types";
-import { hasSupabaseReadEnv, type DataMode, warnFallback } from "./fallback";
+import { type DataMode, warnFallback } from "./fallback";
+
+type RevenueReadEnv = Record<string, string | undefined>;
+
+const KNOWN_MOCK_STRIPE_MARKERS = [
+  "mara@beatlab.co",
+  "malik@drumpack.io",
+  "devon@sounddesk.io",
+  "beatlab",
+  "drumpack",
+  "sounddesk",
+];
+
+const NON_BUSINESS_STRIPE_EMAILS = new Set([
+  "stripe@example.com",
+  "unknown@soundev.local",
+]);
 
 function dollars(cents: number) {
   return cents / 100;
+}
+
+export function hasRevenueReadEnv(env: RevenueReadEnv = process.env) {
+  return Boolean(
+    env.NEXT_PUBLIC_SUPABASE_URL &&
+      (env.SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+  );
+}
+
+export function selectRevenueReadClient<Client>(
+  serviceRoleClient: Client | null,
+  anonClient: Client | null,
+) {
+  return serviceRoleClient ?? anonClient;
+}
+
+function getRevenueReadClient() {
+  return selectRevenueReadClient(
+    getSupabaseServiceRoleClient(),
+    getSupabaseServerClient(),
+  );
 }
 
 function formatTimestamp(value: string) {
@@ -34,6 +73,62 @@ function formatTimestamp(value: string) {
   }).format(new Date(value));
 }
 
+function isRecord(value: Json | undefined): value is Record<string, Json | undefined> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function stripeLivemodeValue(rawEvent: Json): boolean | null {
+  if (!isRecord(rawEvent)) {
+    return null;
+  }
+
+  if (typeof rawEvent.livemode === "boolean") {
+    return rawEvent.livemode;
+  }
+
+  const data = rawEvent.data;
+  if (!isRecord(data)) {
+    return null;
+  }
+
+  const object = data.object;
+  if (isRecord(object) && typeof object.livemode === "boolean") {
+    return object.livemode;
+  }
+
+  return null;
+}
+
+function isNonBusinessStripeEmail(email: string) {
+  return NON_BUSINESS_STRIPE_EMAILS.has(email.trim().toLowerCase());
+}
+
+function isDisplayableStripeSourceRow(
+  row: Transaction | FailedPayment | Refund,
+) {
+  if (isNonBusinessStripeEmail(row.customer_email)) {
+    return false;
+  }
+
+  return stripeLivemodeValue(row.raw_event) !== false;
+}
+
+export function filterDisplayableStripeRows({
+  transactions,
+  failedPayments,
+  refunds,
+}: {
+  transactions: Transaction[];
+  failedPayments: FailedPayment[];
+  refunds: Refund[];
+}) {
+  return {
+    transactions: transactions.filter(isDisplayableStripeSourceRow),
+    failedPayments: failedPayments.filter(isDisplayableStripeSourceRow),
+    refunds: refunds.filter(isDisplayableStripeSourceRow),
+  };
+}
+
 export function normalizeTransactions(rows: Transaction[]): StripeTransaction[] {
   return rows.map((transaction) => ({
     id: transaction.external_id ?? transaction.id,
@@ -41,11 +136,14 @@ export function normalizeTransactions(rows: Transaction[]): StripeTransaction[] 
     customerEmail: transaction.customer_email,
     productName: transaction.product_name,
     purchaseTimestamp: formatTimestamp(transaction.purchased_at),
+    eventTimestamp: transaction.purchased_at,
     amount: dollars(transaction.amount_cents),
     netAmount: dollars(transaction.net_amount_cents),
     utmSource: transaction.utm_source ?? "",
     utmCampaign: transaction.utm_campaign ?? "",
     utmContent: transaction.utm_content ?? "",
+    paymentIntentId: transaction.stripe_payment_intent_id ?? undefined,
+    chargeId: transaction.stripe_charge_id ?? undefined,
   }));
 }
 
@@ -56,11 +154,13 @@ function normalizeFailedPayments(rows: FailedPayment[]): StripeTransaction[] {
     customerEmail: payment.customer_email,
     productName: payment.product_name,
     purchaseTimestamp: formatTimestamp(payment.failed_at),
+    eventTimestamp: payment.failed_at,
     amount: dollars(payment.amount_cents),
     netAmount: 0,
     utmSource: payment.utm_source ?? "",
     utmCampaign: payment.utm_campaign ?? "",
     utmContent: payment.utm_content ?? "",
+    paymentIntentId: payment.stripe_payment_intent_id ?? undefined,
   }));
 }
 
@@ -71,16 +171,63 @@ function normalizeRefunds(rows: Refund[]): StripeTransaction[] {
     customerEmail: refund.customer_email,
     productName: refund.product_name,
     purchaseTimestamp: formatTimestamp(refund.refunded_at),
+    eventTimestamp: refund.refunded_at,
     amount: dollars(refund.amount_cents),
     netAmount: -dollars(refund.amount_cents),
     utmSource: "",
     utmCampaign: "",
     utmContent: "",
+    paymentIntentId: refund.stripe_payment_intent_id ?? undefined,
+    chargeId: refund.stripe_charge_id ?? undefined,
+    refundId: refund.stripe_refund_id ?? undefined,
   }));
 }
 
 function eventTime(row: StripeTransaction) {
-  return new Date(row.purchaseTimestamp).getTime();
+  return new Date(row.eventTimestamp ?? row.purchaseTimestamp).getTime();
+}
+
+export function hasLiveStripeData({
+  transactions,
+  failedPayments,
+  refunds,
+}: {
+  transactions: Transaction[];
+  failedPayments: FailedPayment[];
+  refunds: Refund[];
+}) {
+  return (
+    transactions.length > 0 || failedPayments.length > 0 || refunds.length > 0
+  );
+}
+
+export function containsKnownMockStripeMarker(rows: StripeTransaction[]) {
+  return rows.some((row) =>
+    [
+      row.customerEmail,
+      row.productName,
+      row.utmSource,
+      row.utmCampaign,
+      row.utmContent,
+    ].some((value) => {
+      const normalized = value.toLowerCase();
+      return KNOWN_MOCK_STRIPE_MARKERS.some((marker) =>
+        normalized.includes(marker),
+      );
+    }),
+  );
+}
+
+function warnIfMockStripeLeak(mode: DataMode, rows: StripeTransaction[]) {
+  if (
+    process.env.NODE_ENV === "development" &&
+    mode !== "mock" &&
+    containsKnownMockStripeMarker(rows)
+  ) {
+    console.error(
+      "Live Stripe data contains known mock/demo markers. Check revenue normalization before rendering.",
+    );
+  }
 }
 
 function liveMode({
@@ -92,11 +239,7 @@ function liveMode({
   failedPayments: FailedPayment[];
   refunds: Refund[];
 }): DataMode {
-  if (
-    transactions.length === 0 &&
-    failedPayments.length === 0 &&
-    refunds.length === 0
-  ) {
+  if (!hasLiveStripeData({ transactions, failedPayments, refunds })) {
     return "mock";
   }
 
@@ -130,21 +273,18 @@ function buildMetrics({
   return {
     grossRevenue,
     refunds: refunds.length,
-    adSpend: mockOverviewMetrics.adSpend,
+    adSpend: 0,
     purchases,
-    leads: mockDashboardSnapshot.leads,
+    leads: 0,
     failedPayments: failedPaymentCount,
     checkoutStarts,
     productPrice: purchases === 0 ? 67 : grossRevenue / purchases,
     refundAmount,
     netRevenue: grossRevenue - refundAmount,
-    estimatedProfit: grossRevenue - refundAmount - mockOverviewMetrics.adSpend,
-    cpa: calculateCpa(mockOverviewMetrics.adSpend, purchases),
-    roas: calculateRoas(grossRevenue, mockOverviewMetrics.adSpend),
-    leadToPurchaseRate: calculateLeadToPurchaseRate(
-      purchases,
-      mockDashboardSnapshot.leads,
-    ),
+    estimatedProfit: grossRevenue - refundAmount,
+    cpa: calculateCpa(0, purchases),
+    roas: calculateRoas(grossRevenue, 0),
+    leadToPurchaseRate: calculateLeadToPurchaseRate(purchases, 0),
     refundRate: calculateRefundRate(refunds.length, purchases),
     failedPaymentRate: calculateFailedPaymentRate(
       failedPaymentCount,
@@ -162,7 +302,17 @@ export function buildRevenueDataFromRows({
   failedPayments: FailedPayment[];
   refunds: Refund[];
 }) {
-  const mode = liveMode({ transactions, failedPayments, refunds });
+  const rawHasLiveRows = hasLiveStripeData({ transactions, failedPayments, refunds });
+  const displayableRows = filterDisplayableStripeRows({
+    transactions,
+    failedPayments,
+    refunds,
+  });
+  const mode = hasLiveStripeData(displayableRows)
+    ? liveMode(displayableRows)
+    : rawHasLiveRows
+      ? "partial"
+      : "mock";
 
   if (mode === "mock") {
     return {
@@ -173,34 +323,36 @@ export function buildRevenueDataFromRows({
     };
   }
 
-  const successfulPurchases = transactions.filter(
-    (transaction) => transaction.status === "succeeded",
-  );
   const stripeTransactions = [
-    ...normalizeTransactions(transactions),
-    ...normalizeFailedPayments(failedPayments),
-    ...normalizeRefunds(refunds),
+    ...normalizeTransactions(displayableRows.transactions),
+    ...normalizeFailedPayments(displayableRows.failedPayments),
+    ...normalizeRefunds(displayableRows.refunds),
   ].sort(
     (left, right) =>
       eventTime(right) - eventTime(left) || right.id.localeCompare(left.id),
   );
-  const overviewMetrics = buildMetrics({ transactions, failedPayments, refunds });
+  warnIfMockStripeLeak(mode, stripeTransactions);
+  const overviewMetrics = buildMetrics(displayableRows);
+  const displayableSuccessfulPurchases = displayableRows.transactions.filter(
+    (transaction) => transaction.status === "succeeded",
+  );
 
   return {
     mode,
     stripeTransactions,
     overviewMetrics,
     dashboardSnapshot: {
-      successfulPurchases: successfulPurchases.length,
-      failedPayments: failedPayments.length,
-      refunds: refunds.length,
-      checkoutStarts: successfulPurchases.length + failedPayments.length,
-      leads: mockDashboardSnapshot.leads,
-      appointments: mockDashboardSnapshot.appointments,
+      successfulPurchases: displayableSuccessfulPurchases.length,
+      failedPayments: displayableRows.failedPayments.length,
+      refunds: displayableRows.refunds.length,
+      checkoutStarts:
+        displayableSuccessfulPurchases.length + displayableRows.failedPayments.length,
+      leads: 0,
+      appointments: 0,
       averageOrderValue:
-        successfulPurchases.length === 0
+        displayableSuccessfulPurchases.length === 0
           ? 0
-          : overviewMetrics.grossRevenue / successfulPurchases.length,
+          : overviewMetrics.grossRevenue / displayableSuccessfulPurchases.length,
     },
   };
 }
@@ -228,7 +380,7 @@ async function readLiveRows<Row>(
 }
 
 export async function getRevenueData() {
-  if (!hasSupabaseReadEnv()) {
+  if (!hasRevenueReadEnv()) {
     warnFallback("Revenue", "Supabase read env vars are missing.");
     return buildRevenueDataFromRows({
       transactions: [],
@@ -237,7 +389,7 @@ export async function getRevenueData() {
     });
   }
 
-  const supabase = getSupabaseServerClient();
+  const supabase = getRevenueReadClient();
 
   if (!supabase) {
     warnFallback("Revenue", "Supabase client unavailable.");

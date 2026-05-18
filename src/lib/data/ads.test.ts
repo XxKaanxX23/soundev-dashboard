@@ -88,6 +88,7 @@ describe("Meta Ads data layer", () => {
       purchases: 4,
       revenue: 268,
       roas: 2.68,
+      signal: "Winner",
     });
     expect(result.overviewMetrics).toMatchObject({
       adSpend: 100,

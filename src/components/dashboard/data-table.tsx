@@ -9,12 +9,14 @@ export type DataTableColumn<T> = {
 type DataTableProps<T> = {
   columns: DataTableColumn<T>[];
   data: T[];
+  emptyMessage?: string;
   getRowId?: (row: T, index: number) => string;
 };
 
 export function DataTable<T>({
   columns,
   data,
+  emptyMessage = "No rows to show.",
   getRowId,
 }: DataTableProps<T>) {
   return (
@@ -38,6 +40,16 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody className="divide-y divide-white/10">
+            {data.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  className="px-4 py-8 text-center text-sm text-zinc-500"
+                >
+                  {emptyMessage}
+                </td>
+              </tr>
+            ) : null}
             {data.map((row, index) => {
               const rowWithId = row as T & { id?: string };
               const rowKey = getRowId?.(row, index) ?? rowWithId.id ?? `${index}`;

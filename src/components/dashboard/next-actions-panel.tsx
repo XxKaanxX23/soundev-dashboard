@@ -10,7 +10,7 @@ export function NextActionsPanel({
       <div className="mb-4">
         <h2 className="text-base font-semibold text-zinc-50">Next Actions</h2>
         <p className="mt-1 text-sm text-zinc-500">
-          Plain-English priorities based on the current mock metrics.
+          Plain-English priorities based on the current business signals.
         </p>
       </div>
       <div className="space-y-3">

@@ -226,11 +226,15 @@ export type StripeTransaction = {
   customerEmail: string;
   productName: string;
   purchaseTimestamp: string;
+  eventTimestamp?: string;
   amount: number;
   netAmount: number;
   utmSource: string;
   utmCampaign: string;
   utmContent: string;
+  paymentIntentId?: string;
+  chargeId?: string;
+  refundId?: string;
 };
 
 export type MetaAd = {
@@ -255,6 +259,7 @@ export type MetaAd = {
   roas: number;
   status: AdStatus;
   creativeAngle: string;
+  signal?: "Winner" | "Promising" | "Watch" | "Needs More Spend" | "Losing" | "No Signal Yet";
 };
 
 export type FunnelStage = {

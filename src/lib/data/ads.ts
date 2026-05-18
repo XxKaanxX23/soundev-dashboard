@@ -1,5 +1,6 @@
 import { metaAds as mockMetaAds, overviewMetrics } from "@/lib/mock-data";
 import { calculateBusinessMetrics, type BusinessMetrics } from "@/lib/metrics";
+import { classifyMetaAd } from "@/lib/recommendations";
 import { getSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { Ad, AdCampaign, AdDailyMetric, AdSet, MetaAd } from "@/lib/types";
@@ -97,6 +98,14 @@ export function normalizeAds({
       roas: rate(revenue, spend),
       status: ad?.status ?? "paused",
       creativeAngle: ad?.creative_angle ?? "Unknown",
+      signal: classifyMetaAd({
+        spend,
+        purchases: metric.purchases,
+        cpa: rate(spend, metric.purchases),
+        roas: rate(revenue, spend),
+        productPrice: 67,
+        targetCpa: 35,
+      }),
     };
   });
 }
