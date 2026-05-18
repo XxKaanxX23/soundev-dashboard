@@ -1,4 +1,5 @@
 import { DataTable, type DataTableColumn } from "@/components/dashboard/data-table";
+import { DataModeBadge } from "@/components/dashboard/data-mode-badge";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { PageSection } from "@/components/dashboard/page-section";
 import { StatusBadge } from "@/components/dashboard/status-badge";
@@ -24,15 +25,18 @@ const columns: DataTableColumn<StripeTransaction>[] = [
 ];
 
 export default async function RevenuePage() {
-  const { dashboardSnapshot, overviewMetrics, stripeTransactions } =
+  const { dashboardSnapshot, mode, overviewMetrics, stripeTransactions } =
     await getRevenueData();
 
   return (
     <div className="space-y-6">
       <PageSection
         title="Revenue"
-        description="Mock Stripe-style transaction view with purchase, refund, failed payment, and UTM context."
+        description="Stripe-style transaction view with purchase, refund, failed payment, and UTM context."
       >
+        <div className="mb-4">
+          <DataModeBadge mode={mode} />
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KPICard
             label="Successful purchases"
@@ -65,7 +69,7 @@ export default async function RevenuePage() {
         <DataTable
           columns={columns}
           data={stripeTransactions}
-          getRowKey={(row) => row.id}
+          getRowId={(row) => row.id}
         />
       </PageSection>
     </div>

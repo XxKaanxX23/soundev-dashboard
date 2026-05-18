@@ -7,9 +7,11 @@ import {
   ReceiptText,
   ShieldCheck,
 } from "lucide-react";
+import { DataModeBadge } from "@/components/dashboard/data-mode-badge";
 import { PageSection } from "@/components/dashboard/page-section";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { getDiagnosticsData, type DiagnosticSummary } from "@/lib/diagnostics";
+import type { DataMode } from "@/lib/data/fallback";
 
 function YesNoBadge({ value }: { value: boolean }) {
   return <StatusBadge status={value ? "ready" : "disconnected"} />;
@@ -54,8 +56,32 @@ function DiagnosticCard({
   );
 }
 
+function diagnosticsMode({
+  env,
+  latestMetaMetricRow,
+  lastFailedPayment,
+  lastRefund,
+  lastStripeTransaction,
+}: Awaited<ReturnType<typeof getDiagnosticsData>>): DataMode {
+  if (
+    latestMetaMetricRow ||
+    lastFailedPayment ||
+    lastRefund ||
+    lastStripeTransaction
+  ) {
+    return "live";
+  }
+
+  if (env.supabaseEnvDetected || env.metaAdsEnvDetected || env.stripeSecretKeyDetected) {
+    return "partial";
+  }
+
+  return "mock";
+}
+
 export default async function DiagnosticsPage() {
   const diagnostics = await getDiagnosticsData();
+  const mode = diagnosticsMode(diagnostics);
 
   return (
     <div className="space-y-6">
@@ -71,6 +97,9 @@ export default async function DiagnosticsPage() {
         title="Diagnostics"
         description="Internal setup checks for Stripe and Meta testing. Secret values are never displayed."
       >
+        <div className="mb-4">
+          <DataModeBadge mode={mode} />
+        </div>
         <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
           <section className="rounded-lg border border-white/10 bg-zinc-950 p-4">
             <div className="mb-3 flex items-center gap-3">
@@ -235,6 +264,40 @@ export default async function DiagnosticsPage() {
             empty="No refund stored yet."
           />
         </div>
+
+        <section className="mt-4 rounded-lg border border-white/10 bg-zinc-950 p-4">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.03]">
+              <ReceiptText className="size-4 text-zinc-300" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-zinc-50">
+                Last Stripe Backfill Sync
+              </h2>
+              <p className="text-sm text-zinc-500">
+                Latest manual historical Stripe sync from `sync_runs`.
+              </p>
+            </div>
+          </div>
+          {diagnostics.lastStripeBackfillSync ? (
+            <div>
+              <StatusBadge status={diagnostics.lastStripeBackfillSync.value} />
+              <p className="mt-3 text-lg font-semibold text-zinc-50">
+                {diagnostics.lastStripeBackfillSync.label}
+              </p>
+              <p className="mt-2 text-sm text-zinc-400">
+                {diagnostics.lastStripeBackfillSync.detail}
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-md border border-dashed border-white/10 p-4">
+              <p className="text-sm text-zinc-400">
+                No Stripe backfill sync found. Run the manual sync endpoint after
+                Stripe and Supabase env vars are configured.
+              </p>
+            </div>
+          )}
+        </section>
 
         <section className="mt-4 rounded-lg border border-white/10 bg-zinc-950 p-4">
           <div className="flex items-center gap-3">

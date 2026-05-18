@@ -257,6 +257,39 @@ curl http://localhost:3000/api/health/stripe
 
 The response reports env/client availability and a timestamp only.
 
+### Stripe Historical Backfill
+
+Stripe webhooks only capture future events. Run a manual backfill when setting up
+the dashboard or when you need to refresh historical revenue, failed payments,
+and refunds.
+
+Local command:
+
+```bash
+curl -X POST http://localhost:3000/api/sync/stripe \
+  -H "Content-Type: application/json" \
+  -d "{\"days\":90}"
+```
+
+PowerShell command:
+
+```powershell
+Invoke-RestMethod -Method POST `
+  -Uri "http://localhost:3000/api/sync/stripe" `
+  -ContentType "application/json" `
+  -Body '{"days":90}'
+```
+
+The default window is 90 days. The route uses `STRIPE_SECRET_KEY` and
+`SUPABASE_SERVICE_ROLE_KEY`, then upserts into:
+
+- `transactions`
+- `failed_payments`
+- `refunds`
+- `sync_runs`
+
+Rows are upserted by `external_id` to prevent duplicates.
+
 ### Stripe Troubleshooting
 
 Webhook secret mismatch:

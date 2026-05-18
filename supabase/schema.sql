@@ -21,6 +21,8 @@ create table if not exists transactions (
   purchased_at timestamptz not null,
   stripe_checkout_session_id text,
   stripe_payment_intent_id text,
+  stripe_charge_id text,
+  payment_method_type text,
   raw_event jsonb not null default '{}'::jsonb,
   utm_source text,
   utm_medium text,

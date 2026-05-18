@@ -30,6 +30,7 @@ export type DiagnosticsData = {
   lastStripeTransaction: DiagnosticSummary | null;
   lastFailedPayment: DiagnosticSummary | null;
   lastRefund: DiagnosticSummary | null;
+  lastStripeBackfillSync: DiagnosticSummary | null;
   lastMetaSyncRun: DiagnosticSummary | null;
   latestMetaMetricRow: DiagnosticSummary | null;
   metaErrorState: DiagnosticSummary | null;
@@ -40,6 +41,7 @@ type DiagnosticRows = {
   transaction: Transaction | null;
   failedPayment: FailedPayment | null;
   refund: Refund | null;
+  stripeBackfillSyncRun?: SyncRun | null;
   metaSyncRun?: SyncRun | null;
   metaMetric?: AdDailyMetric | null;
 };
@@ -116,6 +118,15 @@ export function normalizeDiagnosticRows(rows: DiagnosticRows) {
           reason: rows.refund.reason,
         }
       : null,
+    lastStripeBackfillSync: rows.stripeBackfillSyncRun
+      ? {
+          label: rows.stripeBackfillSyncRun.provider,
+          value: rows.stripeBackfillSyncRun.status,
+          detail:
+            rows.stripeBackfillSyncRun.error_message ??
+            `${rows.stripeBackfillSyncRun.records_processed} records processed. Finished ${formatDate(rows.stripeBackfillSyncRun.finished_at)}.`,
+        }
+      : null,
     lastMetaSyncRun: rows.metaSyncRun
       ? {
           label: rows.metaSyncRun.provider,
@@ -154,6 +165,7 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
         transaction: null,
         failedPayment: null,
         refund: null,
+        stripeBackfillSyncRun: null,
         metaSyncRun: null,
         metaMetric: null,
       }),
@@ -161,7 +173,15 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
   }
 
   try {
-    const [syncRun, transaction, failedPayment, refund, metaSyncRun, metaMetric] =
+    const [
+      syncRun,
+      transaction,
+      failedPayment,
+      refund,
+      stripeBackfillSyncRun,
+      metaSyncRun,
+      metaMetric,
+    ] =
       await Promise.all([
       supabase
         .from("sync_runs")
@@ -191,6 +211,14 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
       supabase
         .from("sync_runs")
         .select("*")
+        .eq("provider", "Stripe")
+        .like("external_id", "stripe_backfill:%")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("sync_runs")
+        .select("*")
         .eq("provider", "Meta Ads")
         .order("started_at", { ascending: false })
         .limit(1)
@@ -215,6 +243,9 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
           ? null
           : (failedPayment.data as FailedPayment | null),
         refund: refund.error ? null : (refund.data as Refund | null),
+        stripeBackfillSyncRun: stripeBackfillSyncRun.error
+          ? null
+          : (stripeBackfillSyncRun.data as SyncRun | null),
         metaSyncRun: metaSyncRun.error ? null : (metaSyncRun.data as SyncRun | null),
         metaMetric: metaMetric.error
           ? null
@@ -230,6 +261,7 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
         transaction: null,
         failedPayment: null,
         refund: null,
+        stripeBackfillSyncRun: null,
         metaSyncRun: null,
         metaMetric: null,
       }),

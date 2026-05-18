@@ -14,8 +14,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body className="min-h-full bg-black text-zinc-50">
+    <html
+      lang="en"
+      className="h-full antialiased"
+      suppressHydrationWarning
+    >
+      <body
+        className="min-h-full bg-black text-zinc-50"
+        suppressHydrationWarning
+      >
         <Sidebar />
         <div className="min-h-screen md:pl-64">
           <Header />

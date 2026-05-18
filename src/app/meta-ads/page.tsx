@@ -1,4 +1,5 @@
 import { DataTable, type DataTableColumn } from "@/components/dashboard/data-table";
+import { DataModeBadge } from "@/components/dashboard/data-mode-badge";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { PageSection } from "@/components/dashboard/page-section";
 import { StatusBadge } from "@/components/dashboard/status-badge";
@@ -11,6 +12,8 @@ import {
   formatPercent,
   formatRatio,
 } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
 
 const columns: DataTableColumn<MetaAd>[] = [
   { header: "Campaign", accessor: "campaign" },
@@ -30,8 +33,12 @@ const columns: DataTableColumn<MetaAd>[] = [
   { header: "Creative angle", accessor: "creativeAngle" },
 ];
 
+function metaAdRowKey(row: MetaAd, index: number) {
+  return row.id ?? `${row.adId}-${row.dateStart}-${index}`;
+}
+
 export default async function MetaAdsPage() {
-  const { metaAds, overviewMetrics } = await getAdsData();
+  const { metaAds, mode, overviewMetrics } = await getAdsData();
   const totalImpressions = metaAds.reduce((sum, ad) => sum + ad.impressions, 0);
   const totalClicks = metaAds.reduce((sum, ad) => sum + ad.clicks, 0);
   const averageCtr = totalImpressions === 0 ? 0 : totalClicks / totalImpressions;
@@ -42,8 +49,11 @@ export default async function MetaAdsPage() {
     <div className="space-y-6">
       <PageSection
         title="Meta Ads"
-        description="Mock ad account performance by campaign, ad set, ad, and creative angle."
+        description="Ad account performance by campaign, ad set, ad, and creative angle."
       >
+        <div className="mb-4">
+          <DataModeBadge mode={mode} />
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KPICard label="Spend" value={formatCurrency(overviewMetrics.adSpend)} />
           <KPICard label="Purchases" value={formatNumber(overviewMetrics.purchases)} />
@@ -76,7 +86,7 @@ export default async function MetaAdsPage() {
         <DataTable
           columns={columns}
           data={metaAds}
-          getRowKey={(row) => `${row.campaign}-${row.adSet}-${row.adName}`}
+          getRowId={metaAdRowKey}
         />
       </PageSection>
     </div>

@@ -82,6 +82,8 @@ export interface Transaction extends SyncedTableRow, UtmFields {
   purchased_at: string;
   stripe_checkout_session_id: string | null;
   stripe_payment_intent_id: string | null;
+  stripe_charge_id?: string | null;
+  payment_method_type?: string | null;
   raw_event: Json;
 }
 
@@ -232,6 +234,12 @@ export type StripeTransaction = {
 };
 
 export type MetaAd = {
+  id?: string;
+  campaignId?: string;
+  adSetId?: string;
+  adId?: string;
+  dateStart?: string;
+  dateStop?: string;
   campaign: string;
   adSet: string;
   adName: string;

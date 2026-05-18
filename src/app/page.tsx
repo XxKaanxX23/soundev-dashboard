@@ -1,6 +1,7 @@
 import { AlertCallout } from "@/components/dashboard/alert-callout";
 import { BarChartCard } from "@/components/dashboard/bar-chart-card";
 import { DataHealthPanel } from "@/components/dashboard/data-health-panel";
+import { DataModeBadge } from "@/components/dashboard/data-mode-badge";
 import { DataTable, type DataTableColumn } from "@/components/dashboard/data-table";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { LineChartCard } from "@/components/dashboard/line-chart-card";
@@ -34,6 +35,7 @@ export default async function OverviewPage() {
     dashboardSnapshot,
     metricAlerts,
     metaAds,
+    mode,
     nextActions,
     overviewMetrics,
     revenueTrend,
@@ -44,11 +46,14 @@ export default async function OverviewPage() {
     <div className="space-y-6">
       <section>
         <div className="mb-4">
-          <h2 className="text-xl font-semibold text-zinc-50">
-            Overview / Command Center
-          </h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-xl font-semibold text-zinc-50">
+              Overview / Command Center
+            </h2>
+            <DataModeBadge mode={mode} />
+          </div>
           <p className="mt-1 text-sm text-zinc-500">
-            Mock 7-day operating view for Drum Mastery Suite at a $67 price point.
+            7-day operating view for Drum Mastery Suite at a $67 price point.
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -145,7 +150,7 @@ export default async function OverviewPage() {
         <DataTable
           columns={topAdColumns}
           data={metaAds}
-          getRowKey={(row) => `${row.campaign}-${row.adName}`}
+          getRowId={(row, index) => row.id ?? `${row.adId}-${row.dateStart}-${index}`}
         />
       </PageSection>
     </div>

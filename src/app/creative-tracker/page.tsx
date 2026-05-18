@@ -51,7 +51,6 @@ export default async function CreativeTrackerPage() {
         <DataTable
           columns={columns}
           data={creativeIdeas}
-          getRowKey={(row) => row.ideaTitle}
         />
       </PageSection>
     </div>

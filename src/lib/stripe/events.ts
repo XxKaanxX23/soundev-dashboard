@@ -126,6 +126,8 @@ export function mapStripeEventToTransaction(
   const isCheckoutSession = object.object === "checkout.session";
   const paymentIntentId = stringId(object.payment_intent) ?? asString(object.id);
   const checkoutSessionId = isCheckoutSession ? asString(object.id) : null;
+  const chargeId = stringId(object.latest_charge) ?? stringId(object.charge);
+  const paymentMethodTypes = object.payment_method_types;
   const amountCents = asNumber(object.amount_total) || asNumber(object.amount);
 
   return {
@@ -140,6 +142,11 @@ export function mapStripeEventToTransaction(
     purchased_at: fromUnixSeconds(object.created ?? event.created),
     stripe_checkout_session_id: checkoutSessionId,
     stripe_payment_intent_id: paymentIntentId,
+    stripe_charge_id: chargeId,
+    payment_method_type:
+      Array.isArray(paymentMethodTypes) && typeof paymentMethodTypes[0] === "string"
+        ? paymentMethodTypes[0]
+        : null,
     raw_event: rawEvent(event),
     synced_at: new Date().toISOString(),
     ...utmFrom(metadata),

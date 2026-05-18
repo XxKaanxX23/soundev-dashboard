@@ -76,7 +76,6 @@ export default async function FunnelPage() {
           <DataTable
             columns={columns}
             data={funnelStages}
-            getRowKey={(row) => row.stage}
           />
         </PageSection>
       </div>

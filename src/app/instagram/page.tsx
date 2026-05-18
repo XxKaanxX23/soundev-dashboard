@@ -42,7 +42,6 @@ export default async function InstagramPage() {
         <DataTable
           columns={columns}
           data={instagramPosts}
-          getRowKey={(row) => row.title}
         />
       </PageSection>
     </div>
