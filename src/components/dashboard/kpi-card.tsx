@@ -6,6 +6,7 @@ type KPICardProps = {
   value: string;
   detail?: string;
   helper?: string;
+  source?: string;
   tone?: "neutral" | "positive" | "warning" | "danger";
 };
 
@@ -21,6 +22,7 @@ export function KPICard({
   value,
   detail,
   helper,
+  source,
   tone = "neutral",
 }: KPICardProps) {
   return (
@@ -42,6 +44,11 @@ export function KPICard({
       <p className={cn("mt-3 text-2xl font-semibold", toneStyles[tone])}>
         {value}
       </p>
+      {source ? (
+        <p className="mt-2 text-xs font-medium uppercase tracking-[0.12em] text-zinc-600">
+          Source: {source}
+        </p>
+      ) : null}
       {detail ? <p className="mt-2 text-sm text-zinc-500">{detail}</p> : null}
       {helper ? <p className="mt-3 text-xs leading-5 text-zinc-500">{helper}</p> : null}
     </section>

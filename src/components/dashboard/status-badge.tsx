@@ -3,6 +3,10 @@ import { cn } from "@/lib/utils";
 const statusStyles: Record<string, string> = {
   active: "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",
   ready: "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",
+  live: "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",
+  partial: "border-amber-300/25 bg-amber-300/10 text-amber-100",
+  mock: "border-zinc-500/30 bg-zinc-500/10 text-zinc-300",
+  "not-connected": "border-zinc-500/30 bg-zinc-500/10 text-zinc-300",
   connected: "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",
   winner: "border-amber-300/25 bg-amber-300/10 text-amber-100",
   Winner: "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",

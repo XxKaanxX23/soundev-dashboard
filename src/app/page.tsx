@@ -3,6 +3,7 @@ import { BarChartCard } from "@/components/dashboard/bar-chart-card";
 import { DataHealthPanel } from "@/components/dashboard/data-health-panel";
 import { DataModeBadge } from "@/components/dashboard/data-mode-badge";
 import { DataTable, type DataTableColumn } from "@/components/dashboard/data-table";
+import { DataTrustPanel } from "@/components/dashboard/data-trust-panel";
 import { KPICard } from "@/components/dashboard/kpi-card";
 import { LineChartCard } from "@/components/dashboard/line-chart-card";
 import { NextActionsPanel } from "@/components/dashboard/next-actions-panel";
@@ -40,7 +41,8 @@ export default async function OverviewPage() {
     breakEvenCPA,
     channelRevenue,
     dataHealthItems,
-    dashboardSnapshot,
+    dataTrustItems,
+    displayMetrics,
     metricAlerts,
     metaAds,
     mode,
@@ -82,28 +84,48 @@ export default async function OverviewPage() {
           />
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <KPICard label="Gross revenue" value={formatCurrency(overviewMetrics.grossRevenue)} />
-          <KPICard label="Net revenue" value={formatCurrency(overviewMetrics.netRevenue)} />
-          <KPICard label="Ad spend" value={formatCurrency(overviewMetrics.adSpend)} />
+          <KPICard
+            label="Gross revenue"
+            value={formatCurrency(overviewMetrics.grossRevenue)}
+            source="Stripe"
+          />
+          <KPICard
+            label="Net revenue"
+            value={formatCurrency(overviewMetrics.netRevenue)}
+            source="Stripe"
+          />
+          <KPICard
+            label="Ad spend"
+            value={formatCurrency(overviewMetrics.adSpend)}
+            source="Meta Ads"
+          />
           <KPICard
             label="Estimated profit"
             value={formatCurrency(overviewMetrics.estimatedProfit)}
+            source="Stripe + Meta Ads"
             tone="positive"
           />
           <KPICard
             label="Est. Stripe fees"
             value={formatCurrencyPrecise(stripeFees)}
+            source="Stripe estimate"
             helper="Estimated using 2.9% plus $0.30 per successful payment. This is a planning estimate, not an accounting ledger."
           />
           <KPICard
             label="Break-even CPA"
             value={formatCurrencyPrecise(breakEvenCPA)}
+            source="$67 product model"
             helper="Break-even CPA is product price minus estimated Stripe fee per purchase."
           />
-          <KPICard label="Purchases" value={formatNumber(overviewMetrics.purchases)} />
+          <KPICard
+            label="Purchases"
+            value={formatNumber(overviewMetrics.purchases)}
+            source="Stripe"
+          />
           <KPICard
             label="Refunds"
             value={formatNumber(overviewMetrics.refunds)}
+            source="Stripe"
             detail={`${formatPercent(overviewMetrics.refundRate)} refund rate`}
             helper="Refund rate shows what share of buyers requested money back. A high rate can point to expectation or onboarding issues."
             tone="warning"
@@ -111,40 +133,54 @@ export default async function OverviewPage() {
           <KPICard
             label="Failed payments"
             value={formatNumber(overviewMetrics.failedPayments)}
+            source="Stripe"
             detail={`${formatPercent(overviewMetrics.failedPaymentRate)} failed payment rate`}
             helper="Failed payment rate is failed payments divided by checkout starts. It shows how much demand is being lost at payment."
             tone="danger"
           />
-          <KPICard label="Leads" value={formatNumber(overviewMetrics.leads)} />
+          <KPICard
+            label="Leads"
+            value={displayMetrics.leads.value}
+            source={displayMetrics.leads.source}
+            helper={displayMetrics.leads.helper}
+          />
           <KPICard
             label="Cost per purchase"
             value={formatCurrencyPrecise(overviewMetrics.cpa)}
+            source="Meta Ads + Stripe"
             helper="CPA is ad spend divided by purchases. Lower is better because each sale costs less to acquire."
             tone="warning"
           />
           <KPICard
             label="ROAS"
             value={formatRatio(overviewMetrics.roas)}
+            source="Stripe revenue + Meta spend"
             helper="ROAS is revenue divided by ad spend. 2.00x means every $1 in ads produced $2 in revenue."
             tone="danger"
           />
           <KPICard
             label="Lead-to-purchase"
-            value={formatPercent(overviewMetrics.leadToPurchaseRate)}
-            helper="Lead-to-purchase rate shows how many leads eventually bought. It helps separate traffic quality from checkout performance."
+            value={displayMetrics.leadToPurchase.value}
+            source={displayMetrics.leadToPurchase.source}
+            helper={displayMetrics.leadToPurchase.helper}
           />
           <KPICard
             label="Checkout starts"
-            value={formatNumber(dashboardSnapshot.checkoutStarts)}
+            value={displayMetrics.checkoutStarts.value}
+            source={displayMetrics.checkoutStarts.source}
+            helper={displayMetrics.checkoutStarts.helper}
           />
           <KPICard
             label="UTM coverage"
             value={formatPercent(utmCoverage.coverageRate)}
+            source="Stripe metadata"
             detail={`${utmCoverage.trackedPurchases} of ${utmCoverage.totalPurchases} recent purchases fully tagged`}
             helper="UTM coverage is the share of purchases with source, campaign, and content tracking. Higher coverage means cleaner attribution."
           />
         </div>
       </section>
+
+      <DataTrustPanel items={dataTrustItems} />
 
       <PageSection
         title="Warnings and opportunities"

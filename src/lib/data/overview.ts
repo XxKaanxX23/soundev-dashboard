@@ -11,6 +11,8 @@ import {
   calculateBusinessMetrics,
   calculateMetricAlerts,
   calculateUtmCoverage,
+  type BusinessMetrics,
+  type MetricAlert,
 } from "@/lib/metrics";
 import {
   calculateBreakEvenCpa,
@@ -24,6 +26,7 @@ import { combineDataModes, readRowsWithFallback, type DataMode } from "./fallbac
 import { getAdsData } from "./ads";
 import { getCreativeData } from "./creative";
 import { getFunnelData } from "./funnel";
+import { getInstagramData } from "./instagram";
 import { getRevenueData } from "./revenue";
 
 function formatFreshness(value: string | null) {
@@ -58,11 +61,228 @@ type ChannelRevenuePoint = {
   purchases: number;
 };
 
+export type OverviewDisplayMetric = {
+  value: string;
+  source: string;
+  helper: string;
+};
+
+export type OverviewDisplayMetrics = {
+  leads: OverviewDisplayMetric;
+  leadToPurchase: OverviewDisplayMetric;
+  checkoutStarts: OverviewDisplayMetric;
+};
+
+export type DataTrustStatus = "live" | "partial" | "mock" | "not-connected";
+
+export type DataTrustItem = {
+  source: "Stripe" | "Meta Ads" | "GoHighLevel" | "Notion" | "Instagram";
+  status: DataTrustStatus;
+  detail: string;
+};
+
 function revenueDateLabel(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
   }).format(new Date(value));
+}
+
+function formatInteger(value: number) {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
+}
+
+function formatPercentValue(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "percent",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+export function buildOverviewDisplayMetrics({
+  funnelMode,
+  stripePaymentAttempts,
+  leads,
+  leadToPurchaseRate,
+  checkoutStarts,
+}: {
+  funnelMode: DataMode;
+  revenueMode: DataMode;
+  stripePaymentAttempts: number;
+  leads: number;
+  leadToPurchaseRate: number;
+  checkoutStarts?: number;
+}): OverviewDisplayMetrics {
+  if (funnelMode === "mock") {
+    const funnelHelper =
+      "Funnel metrics require GoHighLevel sync. Stripe and Meta can be live while GoHighLevel remains disconnected.";
+
+    return {
+      leads: {
+        value: "Not connected",
+        source: "GoHighLevel, not connected",
+        helper: funnelHelper,
+      },
+      leadToPurchase: {
+        value: "Unavailable",
+        source: "GoHighLevel, not connected",
+        helper: funnelHelper,
+      },
+      checkoutStarts: {
+        value: "Unavailable",
+        source: "GoHighLevel, not connected",
+        helper:
+          stripePaymentAttempts > 0
+            ? `${funnelHelper} Stripe has ${formatInteger(stripePaymentAttempts)} payment attempts, but true checkout starts need GoHighLevel.`
+            : funnelHelper,
+      },
+    };
+  }
+
+  return {
+    leads: {
+      value: formatInteger(leads),
+      source: "GoHighLevel",
+      helper: "Lead count from live GoHighLevel funnel data.",
+    },
+    leadToPurchase: {
+      value: formatPercentValue(leadToPurchaseRate),
+      source: "GoHighLevel + Stripe",
+      helper: "Live purchases divided by live GoHighLevel leads.",
+    },
+    checkoutStarts: {
+      value: formatInteger(checkoutStarts ?? stripePaymentAttempts),
+      source: "GoHighLevel",
+      helper: "Checkout starts from live GoHighLevel funnel data.",
+    },
+  };
+}
+
+export function buildTrustedOverviewMetrics({
+  funnelMode,
+  grossRevenue,
+  refunds,
+  adSpend,
+  purchases,
+  failedPayments,
+  stripePaymentAttempts,
+  funnelLeads,
+  funnelCheckoutStarts,
+}: {
+  funnelMode: DataMode;
+  grossRevenue: number;
+  refunds: number;
+  adSpend: number;
+  purchases: number;
+  failedPayments: number;
+  stripePaymentAttempts: number;
+  funnelLeads: number;
+  funnelCheckoutStarts: number;
+}): BusinessMetrics {
+  return calculateBusinessMetrics({
+    grossRevenue,
+    refunds,
+    adSpend,
+    purchases,
+    leads: funnelMode === "mock" ? 0 : funnelLeads,
+    failedPayments,
+    checkoutStarts:
+      funnelMode === "mock" ? stripePaymentAttempts : funnelCheckoutStarts,
+  });
+}
+
+function trustStatusForMode(
+  mode: DataMode,
+  disconnectedWhenMock: boolean,
+): DataTrustStatus {
+  if (mode === "live") {
+    return "live";
+  }
+
+  if (mode === "partial") {
+    return "partial";
+  }
+
+  return disconnectedWhenMock ? "not-connected" : "mock";
+}
+
+export function buildDataTrustItems({
+  revenueMode,
+  adsMode,
+  funnelMode,
+  creativeMode,
+  instagramMode,
+}: {
+  revenueMode: DataMode;
+  adsMode: DataMode;
+  funnelMode: DataMode;
+  creativeMode: DataMode;
+  instagramMode: DataMode;
+}): DataTrustItem[] {
+  return [
+    {
+      source: "Stripe",
+      status: trustStatusForMode(revenueMode, false),
+      detail:
+        revenueMode === "mock"
+          ? "Using demo revenue fallback because no displayable Stripe rows are available."
+          : "Revenue, purchases, failed payments, and refunds come from Stripe.",
+    },
+    {
+      source: "Meta Ads",
+      status: trustStatusForMode(adsMode, false),
+      detail:
+        adsMode === "mock"
+          ? "Using demo ad fallback because no Meta metric rows are available."
+          : "Spend and ad performance come from Meta Ads sync data.",
+    },
+    {
+      source: "GoHighLevel",
+      status: trustStatusForMode(funnelMode, true),
+      detail:
+        funnelMode === "mock"
+          ? "Not connected. Funnel lead and checkout metrics are unavailable on Overview."
+          : "Funnel metrics come from GoHighLevel.",
+    },
+    {
+      source: "Notion",
+      status: trustStatusForMode(creativeMode, true),
+      detail:
+        creativeMode === "mock"
+          ? "Not connected. Creative planning is still demo-only."
+          : "Creative planning data comes from Notion.",
+    },
+    {
+      source: "Instagram",
+      status: trustStatusForMode(instagramMode, true),
+      detail:
+        instagramMode === "mock"
+          ? "Not connected. Organic analytics are still demo-only."
+          : "Organic analytics come from Instagram.",
+    },
+  ];
+}
+
+export function buildUtmAttributionAlert({
+  revenueMode,
+  totalPurchases,
+  coverageRate,
+}: {
+  revenueMode: DataMode;
+  totalPurchases: number;
+  coverageRate: number;
+}): MetricAlert | null {
+  if (revenueMode === "mock" || totalPurchases === 0 || coverageRate > 0) {
+    return null;
+  }
+
+  return {
+    id: "missing-stripe-utm-attribution",
+    title: "Stripe UTM attribution missing",
+    message:
+      "Stripe purchases are live, but UTM attribution is missing. Check whether GoHighLevel passes UTM fields into Stripe metadata.",
+    tone: "warning",
+  };
 }
 
 function channelLabel(source: string) {
@@ -181,11 +401,12 @@ export function selectOverviewRevenueSeries({
 
 export async function getOverviewData() {
   const supabase = getSupabaseServerClient();
-  const [revenue, ads, funnel, creative, health] = await Promise.all([
+  const [revenue, ads, funnel, creative, instagram, health] = await Promise.all([
     getRevenueData(),
     getAdsData(),
     getFunnelData(),
     getCreativeData(),
+    getInstagramData(),
     readRowsWithFallback({
       source: "Source connections",
       mockRows: sourceConnections,
@@ -200,6 +421,7 @@ export async function getOverviewData() {
     ads.mode,
     funnel.mode,
     creative.mode,
+    instagram.mode,
     health.mode,
   ]);
   const totalAdSpend = ads.metaAds.reduce((sum, ad) => sum + ad.spend, 0);
@@ -213,14 +435,16 @@ export async function getOverviewData() {
       utmContent: transaction.utmContent,
     })),
   );
-  const overviewMetrics = calculateBusinessMetrics({
+  const overviewMetrics = buildTrustedOverviewMetrics({
+    funnelMode: funnel.mode,
     grossRevenue: revenue.overviewMetrics.grossRevenue,
     refunds: revenue.dashboardSnapshot.refunds,
     adSpend: totalAdSpend,
     purchases: revenue.dashboardSnapshot.successfulPurchases,
-    leads: funnel.dashboardSnapshot.leads,
     failedPayments: revenue.dashboardSnapshot.failedPayments,
-    checkoutStarts: revenue.dashboardSnapshot.checkoutStarts,
+    stripePaymentAttempts: revenue.dashboardSnapshot.checkoutStarts,
+    funnelLeads: funnel.dashboardSnapshot.leads,
+    funnelCheckoutStarts: funnel.dashboardSnapshot.checkoutStarts,
   });
   const stripeFees = calculateStripeFees({
     grossRevenue: overviewMetrics.grossRevenue,
@@ -266,6 +490,38 @@ export async function getOverviewData() {
     mockRevenueTrend: revenueTrend,
     mockChannelRevenue: channelRevenue,
   });
+  const utmAlert = buildUtmAttributionAlert({
+    revenueMode: revenue.mode,
+    totalPurchases:
+      revenue.mode === "mock" ? utmCoverage.totalPurchases : liveUtmCoverage.totalPurchases,
+    coverageRate:
+      revenue.mode === "mock" ? utmCoverage.coverageRate : liveUtmCoverage.coverageRate,
+  });
+  const displayMetrics = buildOverviewDisplayMetrics({
+    funnelMode: funnel.mode,
+    revenueMode: revenue.mode,
+    stripePaymentAttempts: revenue.dashboardSnapshot.checkoutStarts,
+    leads: funnel.dashboardSnapshot.leads,
+    leadToPurchaseRate: overviewMetrics.leadToPurchaseRate,
+    checkoutStarts: funnel.dashboardSnapshot.checkoutStarts,
+  });
+  const dataTrustItems = buildDataTrustItems({
+    revenueMode: revenue.mode,
+    adsMode: ads.mode,
+    funnelMode: funnel.mode,
+    creativeMode: creative.mode,
+    instagramMode: instagram.mode,
+  });
+  const liveMetricAlerts = calculateMetricAlerts({
+    cpa: overviewMetrics.cpa,
+    roas: overviewMetrics.roas,
+    failedPaymentRate: overviewMetrics.failedPaymentRate,
+    refundRate: overviewMetrics.refundRate,
+    hasCreativeWinner:
+      creative.mode !== "mock" &&
+      creative.creativeIdeas.some((idea) => idea.status === "winner"),
+  }).concat(mismatchWarnings);
+  const trustedMetricAlerts = utmAlert ? liveMetricAlerts.concat(utmAlert) : liveMetricAlerts;
 
   return {
     mode,
@@ -275,20 +531,11 @@ export async function getOverviewData() {
     },
     stripeFees,
     breakEvenCPA,
+    displayMetrics,
+    dataTrustItems,
     dashboardSnapshot: revenue.dashboardSnapshot,
     metaAds: ads.metaAds,
-    metricAlerts:
-      mode === "mock"
-        ? metricAlerts
-        : calculateMetricAlerts({
-            cpa: overviewMetrics.cpa,
-            roas: overviewMetrics.roas,
-            failedPaymentRate: overviewMetrics.failedPaymentRate,
-            refundRate: overviewMetrics.refundRate,
-            hasCreativeWinner: creative.creativeIdeas.some(
-              (idea) => idea.status === "winner",
-            ),
-          }).concat(mismatchWarnings),
+    metricAlerts: mode === "mock" ? metricAlerts : trustedMetricAlerts,
     nextActions: mode === "mock" ? nextActions : generatedRecommendations,
     utmCoverage: revenue.mode === "mock" ? utmCoverage : liveUtmCoverage,
     revenueTrend: revenueSeries.revenueTrend,

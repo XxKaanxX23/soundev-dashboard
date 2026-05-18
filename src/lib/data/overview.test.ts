@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildDataTrustItems,
   buildChannelRevenueFromStripe,
+  buildOverviewDisplayMetrics,
+  buildTrustedOverviewMetrics,
   buildRevenueTrendFromStripe,
+  buildUtmAttributionAlert,
   selectOverviewRevenueSeries,
 } from "./overview";
 import type { StripeTransaction } from "@/lib/types";
@@ -96,5 +100,82 @@ describe("overview Stripe revenue series", () => {
 
     expect(result.revenueTrend).toEqual([]);
     expect(result.channelRevenue).toEqual([]);
+  });
+});
+
+describe("overview data honesty", () => {
+  it("does not expose mock lead counts when GoHighLevel is not connected", () => {
+    const display = buildOverviewDisplayMetrics({
+      funnelMode: "mock",
+      revenueMode: "live",
+      stripePaymentAttempts: 5,
+      leads: 860,
+      leadToPurchaseRate: 0.1,
+    });
+
+    expect(display.leads.value).toBe("Not connected");
+    expect(display.leadToPurchase.value).toBe("Unavailable");
+    expect(display.checkoutStarts.value).toBe("Unavailable");
+    expect(display.leads.value).not.toBe("860");
+  });
+
+  it("keeps revenue and spend sourced from live Stripe and Meta data", () => {
+    const metrics = buildTrustedOverviewMetrics({
+      funnelMode: "mock",
+      grossRevenue: 201,
+      refunds: 0,
+      adSpend: 75,
+      purchases: 3,
+      failedPayments: 1,
+      stripePaymentAttempts: 4,
+      funnelLeads: 860,
+      funnelCheckoutStarts: 146,
+    });
+    const trustItems = buildDataTrustItems({
+      revenueMode: "live",
+      adsMode: "live",
+      funnelMode: "mock",
+      creativeMode: "mock",
+      instagramMode: "mock",
+    });
+
+    expect(metrics.grossRevenue).toBe(201);
+    expect(metrics.adSpend).toBe(75);
+    expect(metrics.purchases).toBe(3);
+    expect(metrics.leads).toBe(0);
+    expect(metrics.checkoutStarts).toBe(4);
+    expect(trustItems).toEqual([
+      expect.objectContaining({ source: "Stripe", status: "live" }),
+      expect.objectContaining({ source: "Meta Ads", status: "live" }),
+      expect.objectContaining({ source: "GoHighLevel", status: "not-connected" }),
+      expect.objectContaining({ source: "Notion", status: "not-connected" }),
+      expect.objectContaining({ source: "Instagram", status: "not-connected" }),
+    ]);
+  });
+
+  it("adds a UTM warning when live Stripe purchases have no attribution", () => {
+    expect(
+      buildUtmAttributionAlert({
+        revenueMode: "live",
+        totalPurchases: 3,
+        coverageRate: 0,
+      }),
+    ).toEqual({
+      id: "missing-stripe-utm-attribution",
+      title: "Stripe UTM attribution missing",
+      message:
+        "Stripe purchases are live, but UTM attribution is missing. Check whether GoHighLevel passes UTM fields into Stripe metadata.",
+      tone: "warning",
+    });
+  });
+
+  it("does not add a UTM warning for mock Stripe data", () => {
+    expect(
+      buildUtmAttributionAlert({
+        revenueMode: "mock",
+        totalPurchases: 3,
+        coverageRate: 0,
+      }),
+    ).toBeNull();
   });
 });
