@@ -22,6 +22,7 @@ The app started as a clean mock-data prototype and has progressed into a Supabas
 - Supabase
 - Stripe SDK
 - Meta Marketing API
+- Google Analytics Data API (`@google-analytics/data`)
 - Recharts
 - Vitest
 - ESLint
@@ -174,9 +175,11 @@ API routes:
 - `src/app/api/sync/stripe/route.ts`
 - `src/app/api/sync/meta/route.ts`
 - `src/app/api/sync/ghl/route.ts`
+- `src/app/api/sync/ga4/route.ts`
 - `src/app/api/health/stripe/route.ts`
 - `src/app/api/debug/data-status/route.ts`
 - `src/app/api/debug/ghl-capabilities/route.ts`
+- `src/app/api/debug/ga4-events/route.ts`
 
 Sync routes write to Supabase using the service-role client when configured. They must not expose secrets.
 
@@ -236,6 +239,8 @@ META_ACCESS_TOKEN=
 META_AD_ACCOUNT_ID=
 GHL_API_KEY=
 GHL_LOCATION_ID=
+GA4_PROPERTY_ID=
+GOOGLE_APPLICATION_CREDENTIALS_JSON=
 ```
 
 Descriptions:
@@ -249,6 +254,8 @@ Descriptions:
 - `META_AD_ACCOUNT_ID` - Meta ad account ID. May need `act_` prefix depending on usage.
 - `GHL_API_KEY` - Server-only GoHighLevel/LeadConnector Private Integration token.
 - `GHL_LOCATION_ID` - GoHighLevel location/sub-account ID to sync.
+- `GA4_PROPERTY_ID` - Numeric GA4 property ID for the Data API. This is not the measurement ID.
+- `GOOGLE_APPLICATION_CREDENTIALS_JSON` - Server-only Google service account JSON string for GA4 Data API access.
 
 Do not include real values in docs, code, logs, or client bundles.
 
@@ -519,6 +526,38 @@ Known limitations:
 - Passing endpoint checks does not prove GHL metrics match the GHL dashboard UI; important analytics still need manual validation against the UI.
 - If landing page views or checkout starts are not exposed, direct GA4 tracking remains required.
 
+### Phase 9: GA4 Landing Page Analytics Foundation
+
+Added GA4 Data API foundation for landing page behavior and event-based funnel analytics.
+
+New files:
+
+- `src/lib/ga4/client.ts`
+- `src/lib/ga4/events.ts`
+- `src/lib/ga4/reports.ts`
+- `src/app/api/debug/ga4-events/route.ts`
+- `src/app/api/sync/ga4/route.ts`
+- `supabase/migrations/phase-9-ga4-analytics.sql`
+
+Behavior:
+
+- Uses `GA4_PROPERTY_ID` and `GOOGLE_APPLICATION_CREDENTIALS_JSON`.
+- Known measurement ID from the GoHighLevel funnel tracking code: `G-0D4LN9DL38`.
+- Uses the official `@google-analytics/data` Node client.
+- `/api/debug/ga4-events` audits last-7-days event availability and never exposes credentials.
+- `/api/sync/ga4` syncs aggregate event/page/source rows into `ga4_event_metrics` and writes `sync_runs` provider `GA4`.
+- Morning Brief reads synced GA4 rows for landing page views, CTA clicks, and checkout starts only when those events exist.
+- If `landing_page_view` is missing but filtered `page_view` rows exist for `https://drums.soundev.shop/`, landing page views may use filtered `page_view`.
+- Missing `primary_cta_click` and `checkout_start` stay tracking-not-configured.
+- GA4 purchase remains comparison only; Stripe remains purchase and revenue truth.
+
+Known limitations:
+
+- The numeric GA4 property ID still needs to be supplied by the user.
+- The service account must be granted Viewer or Analyst access to the GA4 property.
+- No scheduled GA4 sync exists yet.
+- No GA4 UI page has been added beyond diagnostics and Morning Brief usage.
+
 ## 6. Current Integrations
 
 ### Stripe
@@ -634,6 +673,51 @@ Known issue/watchout:
 - No scheduled sync exists yet.
 - GHL dashboard analytics must not be treated as API-accessible until the capability audit confirms exposed fields and counts are validated against the GHL UI.
 
+### GA4
+
+Event audit route:
+
+- `/api/debug/ga4-events`
+
+Manual sync route:
+
+- `/api/sync/ga4`
+
+Env vars:
+
+- `GA4_PROPERTY_ID`
+- `GOOGLE_APPLICATION_CREDENTIALS_JSON`
+
+API behavior:
+
+- Uses Google Analytics Data API through `@google-analytics/data`.
+- Audits event counts for the last 7 days.
+- Syncs aggregate event/page/source metrics for the last 7 days.
+- Uses measurement ID `G-0D4LN9DL38` only as a known stream/tag reference; API calls require the numeric property ID.
+
+Tables written:
+
+- `ga4_event_metrics`
+- `sync_runs`
+
+Diagnostics behavior:
+
+- `/settings/diagnostics` shows GA4 env detection, latest GA4 sync run, latest GA4 metric row, required event availability, and the known measurement ID.
+
+What works right now:
+
+- Missing env returns safe JSON.
+- Event audit reports whether required GA4 events exist.
+- Manual sync writes aggregate rows when GA4 and Supabase credentials are present.
+- Morning Brief can use synced GA4 landing page views, CTA clicks, and checkout starts when events exist.
+
+Known issue/watchout:
+
+- GA4 property ID is numeric and different from measurement ID `G-0D4LN9DL38`.
+- `primary_cta_click` and `checkout_start` must be configured before those funnel metrics render.
+- GA4 purchase is comparison only; Stripe remains money truth.
+- No scheduled GA4 sync exists yet.
+
 ### Supabase
 
 Schema files:
@@ -649,6 +733,7 @@ Important tables:
 - GoHighLevel: `ghl_contacts`, `ghl_opportunities`, `funnel_events`
 - Notion placeholder: `notion_creatives`
 - Instagram placeholder: `instagram_daily_metrics`
+- GA4: `ga4_event_metrics`
 - Operations: `source_connections`, `sync_runs`
 
 Live/mock fallback rules:
@@ -674,6 +759,7 @@ Live/mock fallback rules:
 - `funnel_events` - future funnel stage events from GoHighLevel. It is not written in Phase 7B.
 - `notion_creatives` - future Notion creative tracker rows.
 - `instagram_daily_metrics` - future Instagram account/content metrics.
+- `ga4_event_metrics` - GA4 aggregate event/page/source metrics from the Data API. Used for landing page views, CTA clicks, video events, and checkout starts only when events exist.
 
 ## 8. Current Pages
 
@@ -685,19 +771,20 @@ Current data source:
 - Stripe tables: `transactions`, `failed_payments`, `refunds`
 - Meta table: `ad_daily_metrics`
 - GoHighLevel table: `ghl_contacts`
+- GA4 table: `ga4_event_metrics`
 - Sync health: `sync_runs`
 - Manual settings: `src/lib/business-settings.ts`
 
 Live or mock:
 
 - Source-of-truth mode. The home page does not import mock business rows.
-- Missing sources show `No data`, `Unavailable`, or `Not connected`.
+- Missing sources show `No data`, `Unavailable`, `Tracking not configured`, or `Not connected`.
 
 Needs work:
 
 - Add exact hourly Meta spend if needed; current Meta rows are daily.
-- Add GA4 for landing page views, CTA clicks, and verified checkout starts.
-- Add deeper GHL form/funnel event support after capability audit.
+- Run GA4 event audit/sync with real numeric property ID and service account credentials.
+- Configure missing GA4 events such as `primary_cta_click` and `checkout_start` if audit shows they are absent.
 
 ### `/revenue`
 
@@ -825,34 +912,36 @@ Needs work:
 
 ## 10. Current Best Next Task
 
-Recommended next task: **Run the Phase 8C audit, then choose Phase 8D based on results**
+Recommended next task: **Run the Phase 9 GA4 audit and configure missing events**
 
 Goal:
 
-- Run `/api/debug/ghl-capabilities` locally with real GoHighLevel credentials.
-- Fill in `GHL_CAPABILITY_AUDIT.md` with endpoint availability and useful fields.
-- Decide whether GHL can provide page/funnel analytics or whether direct GA4 must be implemented next.
+- Add the numeric GA4 property ID and service account credentials.
+- Run `/api/debug/ga4-events`.
+- Confirm whether `page_view`, `primary_cta_click`, video events, and `checkout_start` exist.
+- Configure missing GTM/GA4 events before using CTA or checkout metrics.
 - Keep the Morning Brief source-of-truth behavior intact.
 
 Use this exact prompt:
 
 ```text
-Run and interpret the Phase 8C GoHighLevel capability audit.
+Run and interpret the Phase 9 GA4 event audit.
 
 Goals:
-1. Run the existing GoHighLevel capability audit route with real credentials.
-2. Compare returned endpoint field names to the GoHighLevel dashboard UI.
-3. Decide whether GHL can supply landing page views, CTA clicks, checkout starts, and attribution fields.
+1. Verify the numeric GA4 property ID and service account access.
+2. Audit which GA4 events exist for the Soundev landing page.
+3. Decide which events need to be installed through GHL/GTM/GA4 before funnel metrics can be trusted.
 
 Tasks:
 1. Read MEASUREMENT_PLAN.md and SOURCE_OF_TRUTH.md before changing code.
-2. Start the app with GHL_API_KEY and GHL_LOCATION_ID configured.
+2. Start the app with GA4_PROPERTY_ID and GOOGLE_APPLICATION_CREDENTIALS_JSON configured.
 3. Run:
-   Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/debug/ghl-capabilities"
-4. Review endpoint statuses, fieldNames, utmFieldsFound, and summary.
-5. Update GHL_CAPABILITY_AUDIT.md with redacted findings only.
-6. If GHL exposes reliable page analytics and checkout starts, plan GHL funnel analytics validation.
-7. If not, proceed to Phase 8D: GA4 tracking specification and tag plan.
+   Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/debug/ga4-events"
+4. Review events, requiredEvents, and summary.
+5. Run:
+   Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/sync/ga4"
+6. Verify Morning Brief and diagnostics show only events that exist.
+7. If primary_cta_click or checkout_start are missing, create a GTM/GA4 event installation plan.
 8. Run:
    npm test
    npm run lint
@@ -860,22 +949,22 @@ Tasks:
 
 Important:
 Do not change Stripe, Meta, or GoHighLevel sync behavior.
-Do not expose GHL_API_KEY or customer details.
+Do not expose Google service account credentials.
 Do not add scheduled sync yet.
-Do not add GA4 API integration yet.
+Do not use GA4 purchase as money truth.
 ```
 
-## 11. Roadmap After Phase 8C
+## 11. Roadmap After Phase 9
 
 Recommended order:
 
-1. Run Phase 8C audit with real credentials and record redacted findings
-2. Phase 8D: GA4 tracking specification and tag plan, unless the audit proves GHL can reliably provide page/funnel analytics
-3. Phase 9: Basic auth / password gate
-4. Phase 10: Deploy to Vercel
-5. Phase 11: Scheduled syncs
-6. Phase 12: Notion creative tracker integration
-7. Phase 13: Instagram insights
+1. Run Phase 9 GA4 audit/sync with real credentials and record event availability
+2. Phase 9B: GA4/GTM event installation plan for missing CTA, video, and checkout events
+3. Phase 10: Basic auth / password gate
+4. Phase 11: Deploy to Vercel
+5. Phase 12: Scheduled syncs
+6. Phase 13: Notion creative tracker integration
+7. Phase 14: Instagram insights
 
 ## 12. Git Workflow
 
@@ -924,6 +1013,18 @@ GoHighLevel capability audit:
 
 ```powershell
 Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/debug/ghl-capabilities"
+```
+
+GA4 event audit:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/debug/ga4-events"
+```
+
+GA4 sync:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/sync/ga4"
 ```
 
 Stripe historical sync:

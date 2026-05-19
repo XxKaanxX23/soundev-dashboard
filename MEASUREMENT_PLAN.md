@@ -190,7 +190,11 @@ If GoHighLevel cannot expose landing page analytics or checkout behavior via API
 
 ## GA4 Readiness Plan
 
-GA4 is not connected yet.
+Phase 9 implementation status: GA4 Data API support exists, but metrics are still gated by event availability. The dashboard can audit GA4 events through `/api/debug/ga4-events` and can sync aggregate event/page/source rows through `/api/sync/ga4` into `ga4_event_metrics`. Missing events must remain unavailable or tracking-not-configured.
+
+Known measurement ID from the GoHighLevel funnel tracking code: `G-0D4LN9DL38`.
+
+The Data API requires the numeric GA4 property ID in `GA4_PROPERTY_ID`; the measurement ID is not enough.
 
 Unknowns:
 
@@ -225,6 +229,28 @@ Required parameters:
 - `fbclid` if available
 - `device`
 - `country`
+
+Run event audit:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/debug/ga4-events"
+```
+
+Run GA4 sync:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/sync/ga4"
+```
+
+Current GA4 missing-data rules:
+
+- If GA4 env vars are missing, show GA4 not connected.
+- If GA4 is connected but no sync rows exist, show waiting for first sync.
+- If `landing_page_view` is missing but `page_view` exists for `https://drums.soundev.shop/`, landing page views may use filtered `page_view`.
+- If `primary_cta_click` is missing, CTA clicks are tracking not configured.
+- If `checkout_start` is missing, checkout starts are tracking not configured.
+- Never infer checkout starts from Stripe purchases or GHL contacts.
+- GA4 `purchase` remains comparison only; Stripe is purchase and revenue truth.
 
 ## Diagnostics Roadmap
 

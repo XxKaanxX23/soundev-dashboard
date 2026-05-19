@@ -84,7 +84,7 @@ export const SOURCE_OF_TRUTH_BY_SOURCE: Record<SourceSystem, SourceRule> = {
   ga4: {
     source: "ga4",
     label: "GA4",
-    status: "future",
+    status: "connected",
     owns: [
       "landing_page_views",
       "engaged_sessions",
@@ -95,7 +95,7 @@ export const SOURCE_OF_TRUTH_BY_SOURCE: Record<SourceSystem, SourceRule> = {
       "funnel_behavior",
     ],
     caveat:
-      "GA4 is not connected yet; page behavior and event tracking metrics must be unavailable until configured.",
+      "GA4 Data API foundation exists, but page behavior and event tracking metrics must stay unavailable until required events are verified and synced.",
   },
   manual_settings: {
     source: "manual_settings",

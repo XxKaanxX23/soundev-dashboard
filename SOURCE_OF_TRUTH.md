@@ -9,7 +9,7 @@ This document locks which system is allowed to answer each business question in 
 1. Stripe is the money source of truth.
 2. Meta Ads is the paid acquisition delivery/performance source of truth.
 3. GoHighLevel is the lead/contact/opportunity source of truth.
-4. GA4 will be the page behavior and event tracking source of truth, but is not connected yet.
+4. GA4 is the page behavior and event tracking source of truth after event availability is audited and synced.
 5. Manual settings are the source of truth for goals, product price, and known fixed expenses.
 6. Mock data is allowed only for demo/empty mode when a source has no live rows.
 7. Never append mock rows to live rows.
@@ -79,7 +79,7 @@ GoHighLevel caveats:
 
 ### GA4
 
-GA4 will own:
+GA4 owns after event verification:
 
 - Landing page views
 - Engaged sessions
@@ -91,8 +91,11 @@ GA4 will own:
 
 GA4 caveats:
 
-- GA4 is not connected yet.
+- GA4 Data API foundation exists, but metrics must only render when required events are present in GA4/synced rows.
+- The known measurement ID is `G-0D4LN9DL38`; API reads require the numeric GA4 property ID.
 - Required events and parameters must be verified before metrics are shown as real.
+- If `landing_page_view` is missing but `page_view` exists for the Soundev landing page URL, landing page views may be derived from filtered `page_view`.
+- Missing `primary_cta_click` and `checkout_start` events must show tracking-not-configured states.
 - Stripe remains purchase and revenue truth.
 
 ### Manual Settings
@@ -164,7 +167,7 @@ It must not show:
 ## Credential Truth Rules
 
 - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are the only browser-safe Supabase env vars.
-- `SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `META_ACCESS_TOKEN`, and `GHL_API_KEY` must stay server-side.
+- `SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `META_ACCESS_TOKEN`, `GHL_API_KEY`, and `GOOGLE_APPLICATION_CREDENTIALS_JSON` must stay server-side.
 - Test keys, temporary tokens, and missing webhook secrets must be presented as setup states, not production-ready integrations.
 
 ## Missing Data Labels

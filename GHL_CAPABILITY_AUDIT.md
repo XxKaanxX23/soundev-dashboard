@@ -91,7 +91,13 @@ Endpoint `fieldNames` show available field paths. Use them to decide whether map
 
 ## Current Known Status
 
-The audit route exists, but the capability report must be filled after running it locally with real GoHighLevel credentials:
+Phase 8C confirmed the working direction:
+
+- GHL can be used for leads, forms, attribution fields, and funnel structure.
+- GHL cannot currently be trusted for checkout starts, orders, transactions, or full page analytics.
+- Direct GA4 is required for landing page behavior.
+
+The GHL audit route remains available for re-checking endpoint access after token, API, or funnel changes:
 
 ```powershell
 Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/debug/ghl-capabilities"

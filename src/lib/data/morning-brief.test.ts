@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type {
   AdDailyMetric,
   FailedPayment,
+  Ga4EventMetric,
   GhlContact,
   Refund,
   SyncRun,
@@ -164,6 +165,29 @@ function syncRun(overrides: Partial<SyncRun> = {}): SyncRun {
   };
 }
 
+function ga4Metric(overrides: Partial<Ga4EventMetric> = {}): Ga4EventMetric {
+  return {
+    id: "ga4_1",
+    external_id: "ga4:2026-05-19:page_view:/",
+    source: "ga4",
+    created_at: "2026-05-19T09:00:00.000Z",
+    updated_at: "2026-05-19T09:00:00.000Z",
+    synced_at: "2026-05-19T09:00:00.000Z",
+    metric_date: "2026-05-19",
+    event_name: "page_view",
+    page_path: "/",
+    page_location: "https://drums.soundev.shop/",
+    source_name: "facebook",
+    medium: "paid_social",
+    campaign: "prospecting",
+    event_count: 25,
+    active_users: 20,
+    sessions: 18,
+    raw: {},
+    ...overrides,
+  };
+}
+
 describe("morning brief data", () => {
   it("calculates Stripe revenue and refunds inside the last 24 hours", () => {
     const brief = buildMorningBriefDataFromRows({
@@ -230,6 +254,46 @@ describe("morning brief data", () => {
     expect(brief.funnelSnapshot.landingPageViews.detail).toContain("GA4");
     expect(brief.funnelSnapshot.ctaClicks.status).toBe("unavailable");
     expect(brief.funnelSnapshot.checkoutStarts.status).toBe("unavailable");
+  });
+
+  it("uses GA4 landing page views only when synced GA4 rows exist", () => {
+    const brief = buildMorningBriefDataFromRows({
+      window,
+      transactions: [transaction()],
+      refunds: [],
+      failedPayments: [],
+      adMetrics: [adMetric()],
+      ghlContacts: [],
+      ga4EventMetrics: [ga4Metric()],
+      syncRuns: [],
+      ga4ConnectionAvailable: true,
+    });
+
+    expect(brief.metrics.landingPageViews).toBe(25);
+    expect(brief.funnelSnapshot.landingPageViews.value).toBe("25");
+    expect(brief.funnelSnapshot.landingPageViews.source).toBe("GA4");
+    expect(brief.unavailableMetrics.map((metric) => metric.label)).not.toContain(
+      "Landing page views",
+    );
+  });
+
+  it("does not infer checkout starts from Stripe purchases", () => {
+    const brief = buildMorningBriefDataFromRows({
+      window,
+      transactions: [transaction(), transaction({ id: "txn_2", external_id: "pi_2" })],
+      refunds: [],
+      failedPayments: [],
+      adMetrics: [],
+      ghlContacts: [],
+      ga4EventMetrics: [ga4Metric()],
+      syncRuns: [],
+      ga4ConnectionAvailable: true,
+    });
+
+    expect(brief.metrics.purchases).toBe(2);
+    expect(brief.metrics.checkoutStarts).toBe(0);
+    expect(brief.funnelSnapshot.checkoutStarts.value).toBe("Unavailable");
+    expect(brief.funnelSnapshot.checkoutStarts.detail).toContain("checkout_start");
   });
 
   it("writes profitable and unprofitable summaries without hiding missing data", () => {

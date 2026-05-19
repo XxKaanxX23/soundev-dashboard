@@ -3,6 +3,7 @@ import {
   Activity,
   ArrowLeft,
   Database,
+  LineChart,
   Megaphone,
   ReceiptText,
   ShieldCheck,
@@ -144,6 +145,14 @@ export default async function DiagnosticsPage() {
             <EnvRow
               label="GoHighLevel env detected"
               value={diagnostics.env.ghlEnvDetected}
+            />
+            <EnvRow
+              label="GA4 property ID detected"
+              value={diagnostics.env.ga4PropertyIdDetected}
+            />
+            <EnvRow
+              label="Google credentials detected"
+              value={diagnostics.env.googleCredentialsDetected}
             />
             <EnvRow
               label="Supabase admin client available"
@@ -333,6 +342,106 @@ export default async function DiagnosticsPage() {
           </section>
         </div>
 
+        <div className="mt-4 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+          <section className="soundev-card rounded-lg p-4">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="soundev-icon flex size-9 items-center justify-center rounded-md">
+                <LineChart className="size-4" aria-hidden="true" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-zinc-50">Last GA4 Sync Run</h2>
+                <p className="text-sm text-zinc-500">
+                  Measurement ID discovered in GHL: G-0D4LN9DL38.
+                </p>
+              </div>
+            </div>
+            {diagnostics.lastGa4SyncRun ? (
+              <div>
+                <StatusBadge status={diagnostics.lastGa4SyncRun.value} />
+                <p className="mt-3 text-lg font-semibold text-zinc-50">
+                  {diagnostics.lastGa4SyncRun.label}
+                </p>
+                <p className="mt-2 text-sm text-zinc-400">
+                  {diagnostics.lastGa4SyncRun.detail}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-md border border-dashed border-sd-border-strong bg-black/25 p-4">
+                <p className="text-sm text-zinc-400">
+                  No GA4 sync run found. GA4 needs the numeric property ID and
+                  service account credentials before sync can run.
+                </p>
+              </div>
+            )}
+            {diagnostics.ga4ErrorState ? (
+              <div className="mt-4 rounded-md border border-rose-300/20 bg-rose-300/10 p-3">
+                <StatusBadge status={diagnostics.ga4ErrorState.value} />
+                <p className="mt-2 text-sm text-rose-100">
+                  {diagnostics.ga4ErrorState.detail}
+                </p>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="soundev-card rounded-lg p-4">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="soundev-icon flex size-9 items-center justify-center rounded-md">
+                <Database className="size-4" aria-hidden="true" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-zinc-50">GA4 Event Status</h2>
+                <p className="text-sm text-zinc-500">
+                  Required event availability from synced GA4 aggregate rows.
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <DiagnosticCard
+                title="Latest GA4 Metric Row"
+                summary={diagnostics.latestGa4MetricRow}
+                empty="No GA4 event metric row stored yet."
+              />
+              <section className="soundev-card rounded-lg p-4">
+                <h2 className="text-sm font-medium text-zinc-300">
+                  Required Event Coverage
+                </h2>
+                <div className="mt-3 space-y-2 text-sm text-zinc-400">
+                  <p>
+                    Landing page views:{" "}
+                    <StatusBadge
+                      status={
+                        diagnostics.ga4RequiredEvents.landingPageViewsAvailable
+                          ? "ready"
+                          : "disconnected"
+                      }
+                    />
+                  </p>
+                  <p>
+                    CTA clicks:{" "}
+                    <StatusBadge
+                      status={
+                        diagnostics.ga4RequiredEvents.ctaClicksAvailable
+                          ? "ready"
+                          : "disconnected"
+                      }
+                    />
+                  </p>
+                  <p>
+                    Checkout starts:{" "}
+                    <StatusBadge
+                      status={
+                        diagnostics.ga4RequiredEvents.checkoutStartsAvailable
+                          ? "ready"
+                          : "disconnected"
+                      }
+                    />
+                  </p>
+                </div>
+              </section>
+            </div>
+          </section>
+        </div>
+
         <div className="mt-4 grid gap-4 lg:grid-cols-3">
           <DiagnosticCard
             title="Last Stripe Transaction"
@@ -421,6 +530,7 @@ export default async function DiagnosticsPage() {
                 { label: "ad_campaigns", count: diagnostics.rowCounts.adCampaigns },
                 { label: "ghl_contacts", count: diagnostics.rowCounts.ghlContacts },
                 { label: "ghl_opportunities", count: diagnostics.rowCounts.ghlOpportunities },
+                { label: "ga4_event_metrics", count: diagnostics.rowCounts.ga4EventMetrics },
               ].map((row) => (
                 <tr
                   key={row.label}

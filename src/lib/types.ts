@@ -10,6 +10,7 @@ export type SourceName =
   | "stripe"
   | "meta_ads"
   | "gohighlevel"
+  | "ga4"
   | "notion"
   | "instagram"
   | "manual"
@@ -211,8 +212,22 @@ export interface InstagramDailyMetric extends SyncedTableRow {
   engagement_rate: number | null;
 }
 
+export interface Ga4EventMetric extends SyncedTableRow {
+  metric_date: string;
+  event_name: string;
+  page_path: string | null;
+  page_location: string | null;
+  source_name: string | null;
+  medium: string | null;
+  campaign: string | null;
+  event_count: number;
+  active_users: number;
+  sessions: number;
+  raw: Json;
+}
+
 export interface SourceConnection extends SyncedTableRow {
-  provider: "Stripe" | "GoHighLevel" | "Meta Ads" | "Instagram" | "Notion";
+  provider: "Stripe" | "GoHighLevel" | "Meta Ads" | "GA4" | "Instagram" | "Notion";
   description: string;
   status: SourceConnectionStatus;
   health: SourceConnectionHealth;
@@ -332,6 +347,7 @@ export interface Database {
       funnel_events: Table<FunnelEvent>;
       notion_creatives: Table<NotionCreative>;
       instagram_daily_metrics: Table<InstagramDailyMetric>;
+      ga4_event_metrics: Table<Ga4EventMetric>;
       source_connections: Table<SourceConnection>;
       sync_runs: Table<SyncRun>;
     };

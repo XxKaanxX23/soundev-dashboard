@@ -2,6 +2,7 @@ import { getSupabaseServiceRoleClient } from "@/lib/supabase/admin";
 import type {
   AdDailyMetric,
   FailedPayment,
+  Ga4EventMetric,
   GhlContact,
   GhlOpportunity,
   Refund,
@@ -18,6 +19,9 @@ export type DiagnosticsEnvStatus = {
   supabaseServiceRoleDetected: boolean;
   metaAdsEnvDetected: boolean;
   ghlEnvDetected: boolean;
+  ga4EnvDetected: boolean;
+  ga4PropertyIdDetected: boolean;
+  googleCredentialsDetected: boolean;
 };
 
 export type DiagnosticSummary = {
@@ -41,6 +45,16 @@ export type DiagnosticsData = {
   latestGhlContact: DiagnosticSummary | null;
   latestGhlOpportunity: DiagnosticSummary | null;
   ghlErrorState: DiagnosticSummary | null;
+  lastGa4SyncRun: DiagnosticSummary | null;
+  latestGa4MetricRow: DiagnosticSummary | null;
+  ga4ErrorState: DiagnosticSummary | null;
+  ga4RequiredEvents: {
+    measurementId: string;
+    landingPageViewsAvailable: boolean;
+    ctaClicksAvailable: boolean;
+    checkoutStartsAvailable: boolean;
+    requiredEventsStatus: Record<string, { found: boolean; count: number }>;
+  };
   rowCounts: {
     transactions: number;
     failedPayments: number;
@@ -51,6 +65,7 @@ export type DiagnosticsData = {
     adCampaigns: number;
     ghlContacts: number;
     ghlOpportunities: number;
+    ga4EventMetrics: number;
   };
   fieldCoverage: {
     stripeUtmCoverage: number;
@@ -71,6 +86,8 @@ type DiagnosticRows = {
   ghlSyncRun?: SyncRun | null;
   ghlContact?: GhlContact | null;
   ghlOpportunity?: GhlOpportunity | null;
+  ga4SyncRun?: SyncRun | null;
+  ga4Metric?: Ga4EventMetric | null;
 };
 
 export function getDiagnosticsEnvStatus(
@@ -85,6 +102,11 @@ export function getDiagnosticsEnvStatus(
     supabaseServiceRoleDetected: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
     metaAdsEnvDetected: Boolean(env.META_ACCESS_TOKEN && env.META_AD_ACCOUNT_ID),
     ghlEnvDetected: Boolean(env.GHL_API_KEY && env.GHL_LOCATION_ID),
+    ga4EnvDetected: Boolean(
+      env.GA4_PROPERTY_ID && env.GOOGLE_APPLICATION_CREDENTIALS_JSON,
+    ),
+    ga4PropertyIdDetected: Boolean(env.GA4_PROPERTY_ID),
+    googleCredentialsDetected: Boolean(env.GOOGLE_APPLICATION_CREDENTIALS_JSON),
   };
 }
 
@@ -213,6 +235,28 @@ export function normalizeDiagnosticRows(rows: DiagnosticRows) {
             detail: rows.ghlSyncRun.error_message ?? "Last GoHighLevel sync failed.",
           }
         : null,
+    lastGa4SyncRun: rows.ga4SyncRun
+      ? {
+          label: rows.ga4SyncRun.provider,
+          value: rows.ga4SyncRun.status,
+          detail: `${rows.ga4SyncRun.records_processed} records processed. Finished ${formatDate(rows.ga4SyncRun.finished_at)}.`,
+        }
+      : null,
+    latestGa4MetricRow: rows.ga4Metric
+      ? {
+          label: rows.ga4Metric.event_name,
+          value: rows.ga4Metric.event_count.toLocaleString(),
+          detail: `${rows.ga4Metric.metric_date} · ${rows.ga4Metric.page_path ?? rows.ga4Metric.page_location ?? "No page"} · source ${rows.ga4Metric.source_name ?? "untracked"}.`,
+        }
+      : null,
+    ga4ErrorState:
+      rows.ga4SyncRun?.status === "error"
+        ? {
+            label: "GA4",
+            value: "error",
+            detail: rows.ga4SyncRun.error_message ?? "Last GA4 sync failed.",
+          }
+        : null,
   };
 }
 
@@ -236,6 +280,7 @@ async function fetchRowCounts(supabase: SupabaseClient) {
     adCampaigns,
     ghlContacts,
     ghlOpportunities,
+    ga4EventMetrics,
   ] = await Promise.all([
     countOf("transactions"),
     countOf("failed_payments"),
@@ -246,6 +291,7 @@ async function fetchRowCounts(supabase: SupabaseClient) {
     countOf("ad_campaigns"),
     countOf("ghl_contacts"),
     countOf("ghl_opportunities"),
+    countOf("ga4_event_metrics"),
   ]);
 
   return {
@@ -258,6 +304,7 @@ async function fetchRowCounts(supabase: SupabaseClient) {
     adCampaigns,
     ghlContacts,
     ghlOpportunities,
+    ga4EventMetrics,
   };
 }
 
@@ -304,6 +351,56 @@ async function fetchFieldCoverage(supabase: SupabaseClient) {
   };
 }
 
+async function fetchGa4RequiredEvents(supabase: SupabaseClient) {
+  const { data } = await supabase
+    .from("ga4_event_metrics")
+    .select("event_name,event_count,page_location,page_path");
+  const rows = (data ?? []) as Pick<
+    Ga4EventMetric,
+    "event_name" | "event_count" | "page_location" | "page_path"
+  >[];
+  const countFor = (eventName: string) =>
+    rows
+      .filter((row) => row.event_name === eventName)
+      .reduce((sum, row) => sum + row.event_count, 0);
+  const landingPageViewCount =
+    countFor("landing_page_view") +
+    rows
+      .filter(
+        (row) =>
+          row.event_name === "page_view" &&
+          (row.page_location?.includes("https://drums.soundev.shop/") ||
+            row.page_path === "/"),
+      )
+      .reduce((sum, row) => sum + row.event_count, 0);
+  const eventNames = [
+    "landing_page_view",
+    "page_view",
+    "primary_cta_click",
+    "video_play",
+    "video_25_percent",
+    "video_50_percent",
+    "video_75_percent",
+    "video_complete",
+    "checkout_start",
+    "purchase",
+  ];
+  const requiredEventsStatus = Object.fromEntries(
+    eventNames.map((eventName) => {
+      const count = countFor(eventName);
+      return [eventName, { found: count > 0, count }];
+    }),
+  );
+
+  return {
+    measurementId: "G-0D4LN9DL38",
+    landingPageViewsAvailable: landingPageViewCount > 0,
+    ctaClicksAvailable: countFor("primary_cta_click") > 0,
+    checkoutStartsAvailable: countFor("checkout_start") > 0,
+    requiredEventsStatus,
+  };
+}
+
 export async function getDiagnosticsData(): Promise<DiagnosticsData> {
 
   const env = getDiagnosticsEnvStatus();
@@ -320,6 +417,7 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
       adCampaigns: 0,
       ghlContacts: 0,
       ghlOpportunities: 0,
+      ga4EventMetrics: 0,
     };
     const emptyFieldCoverage = {
       stripeUtmCoverage: 0,
@@ -341,7 +439,16 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
         ghlSyncRun: null,
         ghlContact: null,
         ghlOpportunity: null,
+        ga4SyncRun: null,
+        ga4Metric: null,
       }),
+      ga4RequiredEvents: {
+        measurementId: "G-0D4LN9DL38",
+        landingPageViewsAvailable: false,
+        ctaClicksAvailable: false,
+        checkoutStartsAvailable: false,
+        requiredEventsStatus: {},
+      },
       rowCounts: emptyRowCounts,
       fieldCoverage: emptyFieldCoverage,
     };
@@ -359,6 +466,8 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
       ghlSyncRun,
       ghlContact,
       ghlOpportunity,
+      ga4SyncRun,
+      ga4Metric,
     ] =
       await Promise.all([
       supabase
@@ -426,6 +535,19 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
         .order("opened_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
+      supabase
+        .from("sync_runs")
+        .select("*")
+        .eq("provider", "GA4")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("ga4_event_metrics")
+        .select("*")
+        .order("metric_date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
     return {
@@ -452,15 +574,20 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
         ghlOpportunity: ghlOpportunity.error
           ? null
           : (ghlOpportunity.data as GhlOpportunity | null),
+        ga4SyncRun: ga4SyncRun.error ? null : (ga4SyncRun.data as SyncRun | null),
+        ga4Metric: ga4Metric.error
+          ? null
+          : (ga4Metric.data as Ga4EventMetric | null),
       }),
       rowCounts: await fetchRowCounts(supabase),
       fieldCoverage: await fetchFieldCoverage(supabase),
+      ga4RequiredEvents: await fetchGa4RequiredEvents(supabase),
     };
   } catch {
     const emptyRowCounts = {
       transactions: 0, failedPayments: 0, refunds: 0,
       adDailyMetrics: 0, ads: 0, adSets: 0, adCampaigns: 0,
-      ghlContacts: 0, ghlOpportunities: 0,
+      ghlContacts: 0, ghlOpportunities: 0, ga4EventMetrics: 0,
     };
     return {
       env,
@@ -469,7 +596,15 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
         syncRun: null, transaction: null, failedPayment: null, refund: null,
         stripeBackfillSyncRun: null, metaSyncRun: null, metaMetric: null,
         ghlSyncRun: null, ghlContact: null, ghlOpportunity: null,
+        ga4SyncRun: null, ga4Metric: null,
       }),
+      ga4RequiredEvents: {
+        measurementId: "G-0D4LN9DL38",
+        landingPageViewsAvailable: false,
+        ctaClicksAvailable: false,
+        checkoutStartsAvailable: false,
+        requiredEventsStatus: {},
+      },
       rowCounts: emptyRowCounts,
       fieldCoverage: { stripeUtmCoverage: 0, metaPurchaseValueCoverage: 0, ghlUtmCoverage: 0, opportunityCount: 0 },
     };

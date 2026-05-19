@@ -2,7 +2,7 @@
 
 Private analytics dashboard prototype for Soundev's Drum Mastery Suite.
 
-This app supports mock/demo mode plus optional server-side live reads from Supabase. Stripe, Meta Ads, and GoHighLevel integration foundations are in place. Notion, Instagram, authentication, deployment, and scheduled syncs are not connected yet.
+This app supports mock/demo mode plus optional server-side live reads from Supabase. Stripe, Meta Ads, GoHighLevel, and GA4 integration foundations are in place. Notion, Instagram, authentication, deployment, and scheduled syncs are not connected yet.
 
 ## Morning Brief
 
@@ -21,7 +21,7 @@ Default behavior:
 
 The Morning Brief does not use mock business data when live rows exist. If a source has no live rows, the UI shows `No data`, `Unavailable`, or `Not connected` instead of fake numbers.
 
-Unavailable until future GA4 work:
+Available only after GA4 audit/sync verifies events:
 
 - Landing page views
 - CTA clicks
@@ -190,6 +190,8 @@ Add these to `.env.local` when you are ready to test GoHighLevel sync:
 ```bash
 GHL_API_KEY=
 GHL_LOCATION_ID=
+GA4_PROPERTY_ID=
+GOOGLE_APPLICATION_CREDENTIALS_JSON=
 ```
 
 Do not prefix the GoHighLevel API key with `NEXT_PUBLIC_`. It must stay server-only.
@@ -245,6 +247,88 @@ Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/debug/ghl-capabil
 The audit checks contacts, opportunities, forms, form submissions, funnels, funnel pages, orders, transactions, custom fields, and location metadata. It returns endpoint-level status, field names, UTM/click-ID detection, and a recommendation about whether direct GA4 is still needed for landing page views, CTA clicks, and checkout starts.
 
 The audit does not write to Supabase and does not expose the GoHighLevel API key, full customer names, full emails, phone numbers, or raw payloads. See `GHL_CAPABILITY_AUDIT.md` for the interpretation guide.
+
+## GA4 Landing Page Analytics Foundation
+
+Phase 9 adds GA4 Data API support for landing page and event-based funnel analytics. GA4 is now the planned source of truth for landing page views, CTA clicks, video events, checkout starts, and page behavior, but the dashboard only uses events that actually exist in GA4/synced rows.
+
+### Measurement ID vs Property ID
+
+The GA4 measurement ID found in the GoHighLevel funnel tracking code is:
+
+```text
+G-0D4LN9DL38
+```
+
+That identifies the tag/stream. The Google Analytics Data API requires the numeric GA4 property ID, which is different.
+
+### GA4 Environment Variables
+
+Add these to `.env.local` when ready:
+
+```bash
+GA4_PROPERTY_ID=
+GOOGLE_APPLICATION_CREDENTIALS_JSON=
+```
+
+Do not prefix these with `NEXT_PUBLIC_`. They must stay server-only.
+
+`GOOGLE_APPLICATION_CREDENTIALS_JSON` should contain the service account JSON as a single env var string. For local and Vercel usage, keep it on one line or preserve escaped newline characters in the private key.
+
+### Create A Google Cloud Service Account
+
+1. Open Google Cloud Console.
+2. Create or choose a project.
+3. Enable the Google Analytics Data API.
+4. Create a service account.
+5. Create a JSON key for that service account.
+6. Add the service account email to the GA4 property with Viewer or Analyst access.
+7. Put the numeric property ID in `GA4_PROPERTY_ID`.
+8. Put the JSON key content in `GOOGLE_APPLICATION_CREDENTIALS_JSON`.
+
+### Run GA4 Event Audit
+
+Start the app:
+
+```bash
+npm run dev
+```
+
+Run:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/debug/ga4-events"
+```
+
+The audit returns event names/counts from the last 7 days and checks:
+
+- `landing_page_view`
+- `page_view`
+- `primary_cta_click`
+- `video_play`
+- `video_25_percent`
+- `video_50_percent`
+- `video_75_percent`
+- `video_complete`
+- `checkout_start`
+- `purchase` for comparison only; Stripe remains purchase truth
+
+If `landing_page_view` does not exist but `page_view` exists for `https://drums.soundev.shop/`, landing page views can be derived from filtered `page_view` rows. Missing CTA or checkout events remain `Tracking not configured`.
+
+### Run GA4 Sync
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/sync/ga4"
+```
+
+The sync pulls the last 7 days of aggregate event/page/source data, upserts into `ga4_event_metrics`, and writes a `sync_runs` row with provider `GA4`.
+
+### Current GA4 Limits
+
+- GA4 purchase events are comparison only. Stripe remains purchase and money truth.
+- CTA clicks and checkout starts stay unavailable until those events exist.
+- No scheduled sync exists yet.
+- No private user-level GA4 data is stored or returned.
 
 ### Webhook Endpoint
 

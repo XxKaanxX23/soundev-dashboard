@@ -12,6 +12,7 @@ const tableConfigs = [
   { name: "ads", orderBy: "created_at" },
   { name: "ad_sets", orderBy: "created_at" },
   { name: "ad_campaigns", orderBy: "created_at" },
+  { name: "ga4_event_metrics", orderBy: "metric_date" },
   { name: "sync_runs", orderBy: "started_at" },
 ] as const;
 

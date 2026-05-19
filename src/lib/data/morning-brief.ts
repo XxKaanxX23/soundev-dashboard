@@ -22,6 +22,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type {
   AdDailyMetric,
   FailedPayment,
+  Ga4EventMetric,
   GhlContact,
   Refund,
   SyncRun,
@@ -106,6 +107,12 @@ export type MorningBriefMetrics = {
   adSpendCents: number;
   adClicks: number;
   leads: number;
+  landingPageViews: number;
+  ctaClicks: number;
+  checkoutStarts: number;
+  landingPageToCtaRate: number;
+  ctaToCheckoutStartRate: number;
+  checkoutStartToPurchaseRate: number;
   blendedCpaCents: number;
   blendedRoas: number;
   estimatedStripeFeesCents: number;
@@ -235,6 +242,41 @@ function filterMetaMetricsByWindow(
   return rows.filter((row) => localDates.has(row.metric_date));
 }
 
+function filterGa4MetricsByWindow(
+  rows: Ga4EventMetric[],
+  window: ReportingWindow,
+) {
+  const localDates = new Set([
+    formatDateInTimeZone(window.start, window.timezone),
+    formatDateInTimeZone(window.end, window.timezone),
+  ]);
+
+  return rows.filter((row) => localDates.has(row.metric_date));
+}
+
+function isLandingPageRow(row: Ga4EventMetric) {
+  const landingUrl = BUSINESS_SETTINGS.landingPageUrl.replace(/\/$/, "");
+  const pageLocation = row.page_location?.replace(/\/$/, "") ?? "";
+
+  return (
+    pageLocation === landingUrl ||
+    pageLocation.startsWith(`${landingUrl}?`) ||
+    row.page_path === "/" ||
+    row.page_path === "/drum-mastery" ||
+    row.page_path === "/drum-mastery/"
+  );
+}
+
+function sumGa4Event(
+  rows: Ga4EventMetric[],
+  eventName: string,
+  filter: (row: Ga4EventMetric) => boolean = () => true,
+) {
+  return rows
+    .filter((row) => row.event_name === eventName && filter(row))
+    .reduce((sum, row) => sum + row.event_count, 0);
+}
+
 function latestSyncRun(provider: SyncRun["provider"], rows: SyncRun[]) {
   return rows
     .filter((row) => row.provider === provider)
@@ -250,7 +292,7 @@ function sourceHealth({
   syncRun,
   connectionAvailable,
 }: {
-  source: "Stripe" | "Meta Ads" | "GoHighLevel";
+  source: "Stripe" | "Meta Ads" | "GoHighLevel" | "GA4";
   liveRows: number;
   syncRun?: SyncRun;
   connectionAvailable: boolean;
@@ -538,20 +580,20 @@ function buildTopSummary(metrics: MorningBriefMetrics) {
   ];
 }
 
-function buildFunnelSnapshot(metrics: MorningBriefMetrics): FunnelSnapshot {
-  const landingState = getMissingDataDisplayState("not_connected", {
-    source: "GA4",
-    metricName: "Landing page views",
-  });
-  const ctaState = getMissingDataDisplayState("tracking_not_configured", {
-    source: "GA4",
-    metricName: "CTA clicks",
-  });
-  const checkoutState = getMissingDataDisplayState("tracking_not_configured", {
-    source: "GA4 or verified GoHighLevel",
-    metricName: "Checkout starts",
-  });
-
+function buildFunnelSnapshot({
+  metrics,
+  ga4ConnectionAvailable,
+}: {
+  metrics: MorningBriefMetrics;
+  ga4ConnectionAvailable: boolean;
+}): FunnelSnapshot {
+  const landingState = getMissingDataDisplayState(
+    ga4ConnectionAvailable ? "tracking_not_configured" : "not_connected",
+    {
+      source: "GA4",
+      metricName: "Landing page views",
+    },
+  );
   return {
     metaClicks:
       metrics.adClicks > 0
@@ -566,21 +608,51 @@ function buildFunnelSnapshot(metrics: MorningBriefMetrics): FunnelSnapshot {
             source: "Meta Ads",
             detail: "No Meta click rows exist in the last 24-hour reporting window.",
           }),
-    landingPageViews: unavailableMetric({
-      label: "Landing page views",
-      source: "GA4",
-      detail: landingState.detail,
-    }),
-    ctaClicks: unavailableMetric({
-      label: "CTA clicks",
-      source: "GA4",
-      detail: ctaState.detail,
-    }),
-    checkoutStarts: unavailableMetric({
-      label: "Checkout starts",
-      source: "GA4 or verified GoHighLevel",
-      detail: checkoutState.detail,
-    }),
+    landingPageViews:
+      metrics.landingPageViews > 0
+        ? availableMetric({
+            label: "Landing page views",
+            value: formatNumber(metrics.landingPageViews),
+            source: "GA4",
+            classification: "exact",
+            detail:
+              "Uses landing_page_view when present, otherwise page_view filtered to the Soundev landing page.",
+          })
+        : unavailableMetric({
+            label: "Landing page views",
+            source: "GA4",
+            detail: landingState.detail,
+          }),
+    ctaClicks:
+      metrics.ctaClicks > 0
+        ? availableMetric({
+            label: "CTA clicks",
+            value: formatNumber(metrics.ctaClicks),
+            source: "GA4",
+            classification: "exact",
+            detail: `${formatPercent(metrics.landingPageToCtaRate)} landing page to CTA rate.`,
+          })
+        : unavailableMetric({
+            label: "CTA clicks",
+            source: "GA4",
+            detail:
+              "CTA clicks is unavailable because GA4 event primary_cta_click is not configured or has no data.",
+          }),
+    checkoutStarts:
+      metrics.checkoutStarts > 0
+        ? availableMetric({
+            label: "Checkout starts",
+            value: formatNumber(metrics.checkoutStarts),
+            source: "GA4",
+            classification: "exact",
+            detail: `${formatPercent(metrics.ctaToCheckoutStartRate)} CTA to checkout start rate.`,
+          })
+        : unavailableMetric({
+            label: "Checkout starts",
+            source: "GA4",
+            detail:
+              "Checkout starts is unavailable because GA4 event checkout_start is not configured or has no data.",
+          }),
     purchases: availableMetric({
       label: "Purchases",
       value: formatNumber(metrics.purchases),
@@ -667,8 +739,10 @@ export function buildMorningBriefDataFromRows({
   failedPayments,
   adMetrics,
   ghlContacts,
+  ga4EventMetrics = [],
   syncRuns,
   connectionAvailable = true,
+  ga4ConnectionAvailable = false,
 }: {
   window: ReportingWindow;
   transactions: Transaction[];
@@ -676,8 +750,10 @@ export function buildMorningBriefDataFromRows({
   failedPayments: FailedPayment[];
   adMetrics: AdDailyMetric[];
   ghlContacts: GhlContact[];
+  ga4EventMetrics?: Ga4EventMetric[];
   syncRuns: SyncRun[];
   connectionAvailable?: boolean;
+  ga4ConnectionAvailable?: boolean;
 }): MorningBriefData {
   const displayable = filterDisplayableStripeRows({
     transactions,
@@ -697,6 +773,7 @@ export function buildMorningBriefDataFromRows({
   const contactsInWindow = ghlContacts.filter((row) =>
     isTimestampInWindow(row.first_seen_at, window),
   );
+  const ga4MetricsInWindow = filterGa4MetricsByWindow(ga4EventMetrics, window);
 
   const successfulPurchases = transactionsInWindow.filter(
     (transaction) => transaction.status === "succeeded",
@@ -720,6 +797,15 @@ export function buildMorningBriefDataFromRows({
     (sum, metric) => sum + metric.clicks,
     0,
   );
+  const landingPageViewEventCount = sumGa4Event(
+    ga4MetricsInWindow,
+    "landing_page_view",
+  );
+  const landingPageViews =
+    landingPageViewEventCount ||
+    sumGa4Event(ga4MetricsInWindow, "page_view", isLandingPageRow);
+  const ctaClicks = sumGa4Event(ga4MetricsInWindow, "primary_cta_click");
+  const checkoutStarts = sumGa4Event(ga4MetricsInWindow, "checkout_start");
   const estimatedStripeFeesCents = calculateEstimatedStripeFeeCents({
     grossRevenueCents,
     purchases,
@@ -753,6 +839,13 @@ export function buildMorningBriefDataFromRows({
     adSpendCents,
     adClicks,
     leads: contactsInWindow.length,
+    landingPageViews,
+    ctaClicks,
+    checkoutStarts,
+    landingPageToCtaRate: landingPageViews === 0 ? 0 : ctaClicks / landingPageViews,
+    ctaToCheckoutStartRate: ctaClicks === 0 ? 0 : checkoutStarts / ctaClicks,
+    checkoutStartToPurchaseRate:
+      checkoutStarts === 0 ? 0 : purchases / checkoutStarts,
     blendedCpaCents: calculateBlendedCpaCents({
       metaAdSpendCents: adSpendCents,
       stripePurchases: purchases,
@@ -792,13 +885,12 @@ export function buildMorningBriefDataFromRows({
     syncRun: latestSyncRun("GoHighLevel", syncRuns),
     connectionAvailable,
   });
-  const ga4Health: SourceHealthItem = {
+  const ga4Health = sourceHealth({
     source: "GA4",
-    status: "not_connected",
-    detail:
-      "GA4 is not connected. Landing page views, CTA clicks, and verified checkout starts are unavailable.",
-    lastSyncedAt: null,
-  };
+    liveRows: ga4MetricsInWindow.length,
+    syncRun: latestSyncRun("GA4", syncRuns),
+    connectionAvailable: ga4ConnectionAvailable,
+  });
   const utmTrackingHealth = utmHealth({
     purchases,
     coverageRate: metrics.utmCoverageRate,
@@ -813,11 +905,12 @@ export function buildMorningBriefDataFromRows({
   const sourceIssues = dataHealth
     .filter((item) => item.status === "failed")
     .map((item) => `${item.source} latest sync failed. ${item.detail}`);
+  const funnelSnapshot = buildFunnelSnapshot({ metrics, ga4ConnectionAvailable });
   const unavailableMetrics = [
-    buildFunnelSnapshot(metrics).landingPageViews,
-    buildFunnelSnapshot(metrics).ctaClicks,
-    buildFunnelSnapshot(metrics).checkoutStarts,
-  ];
+    funnelSnapshot.landingPageViews,
+    funnelSnapshot.ctaClicks,
+    funnelSnapshot.checkoutStarts,
+  ].filter((metric) => metric.status === "unavailable");
   const summary = buildMorningSummary({
     netRevenueCents,
     purchases,
@@ -836,14 +929,18 @@ export function buildMorningBriefDataFromRows({
         refundsInWindow.length +
         failedPaymentsInWindow.length +
         adMetricsInWindow.length +
-        contactsInWindow.length >
+        contactsInWindow.length +
+        ga4MetricsInWindow.length >
       0,
     metrics,
     topSummary: buildTopSummary(metrics),
     summary,
     actionItems: buildMorningActionPlan({
       sourceIssues,
-      missingLandingAnalytics: true,
+      missingLandingAnalytics:
+        funnelSnapshot.landingPageViews.status === "unavailable" ||
+        funnelSnapshot.ctaClicks.status === "unavailable" ||
+        funnelSnapshot.checkoutStarts.status === "unavailable",
       estimatedProfitCents,
       revenueGoalProgress: metrics.dailyRevenueGoalProgress,
       purchaseGoalProgress: metrics.dailyPurchaseGoalProgress,
@@ -851,10 +948,10 @@ export function buildMorningBriefDataFromRows({
       failedPaymentRate: metrics.failedPaymentRate,
       utmStatus: utmTrackingHealth.status,
     }),
-    funnelSnapshot: buildFunnelSnapshot(metrics),
+    funnelSnapshot,
     profitCashflow: buildProfitCashflow(metrics),
     dataHealth,
-    sourceFreshness: [stripeHealth, metaHealth, ghlHealth],
+    sourceFreshness: [stripeHealth, metaHealth, ghlHealth, ga4Health],
     unavailableMetrics,
   };
 }
@@ -901,8 +998,10 @@ export async function getMorningBriefData() {
       failedPayments: [],
       adMetrics: [],
       ghlContacts: [],
+      ga4EventMetrics: [],
       syncRuns: [],
       connectionAvailable: false,
+      ga4ConnectionAvailable: false,
     });
   }
 
@@ -912,6 +1011,7 @@ export async function getMorningBriefData() {
     refunds,
     adMetrics,
     ghlContacts,
+    ga4EventMetrics,
     syncRuns,
   ] = await Promise.all([
     readRows<Transaction>(client, "transactions", "purchased_at"),
@@ -919,6 +1019,7 @@ export async function getMorningBriefData() {
     readRows<Refund>(client, "refunds", "refunded_at"),
     readRows<AdDailyMetric>(client, "ad_daily_metrics", "metric_date"),
     readRows<GhlContact>(client, "ghl_contacts", "first_seen_at"),
+    readRows<Ga4EventMetric>(client, "ga4_event_metrics", "metric_date"),
     readRows<SyncRun>(client, "sync_runs", "started_at"),
   ]);
 
@@ -929,6 +1030,10 @@ export async function getMorningBriefData() {
     refunds,
     adMetrics,
     ghlContacts,
+    ga4EventMetrics,
     syncRuns,
+    ga4ConnectionAvailable: Boolean(
+      process.env.GA4_PROPERTY_ID && process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON,
+    ),
   });
 }

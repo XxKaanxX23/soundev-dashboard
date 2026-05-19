@@ -27,8 +27,9 @@ describe("source-of-truth rules", () => {
     );
   });
 
-  it("keeps GA4 as a future behavior source", () => {
-    expect(SOURCE_OF_TRUTH_BY_SOURCE.ga4.status).toBe("future");
+  it("keeps GA4 as verified behavior source only after events exist", () => {
+    expect(SOURCE_OF_TRUTH_BY_SOURCE.ga4.status).toBe("connected");
+    expect(SOURCE_OF_TRUTH_BY_SOURCE.ga4.caveat).toContain("required events");
     expect(getMetricSourceRule("landing_page_views")?.primarySource).toBe("ga4");
   });
 

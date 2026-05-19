@@ -37,6 +37,9 @@ describe("diagnostics helpers", () => {
       supabaseServiceRoleDetected: false,
       metaAdsEnvDetected: false,
       ghlEnvDetected: false,
+      ga4EnvDetected: false,
+      ga4PropertyIdDetected: false,
+      googleCredentialsDetected: false,
     });
     expect(JSON.stringify(status)).not.toContain("real_value");
   });
