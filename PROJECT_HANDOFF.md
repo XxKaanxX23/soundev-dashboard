@@ -46,7 +46,7 @@ npm run build
 
 Routes live under `src/app`:
 
-- `/` - Overview / command center
+- `/` - Morning Brief / source-of-truth home dashboard
 - `/revenue` - Stripe revenue events and KPIs
 - `/meta-ads` - Meta Ads performance
 - `/funnel` - GoHighLevel funnel page with live contact/opportunity fallback
@@ -456,6 +456,41 @@ Cashflow/expense plan:
 - Stripe fees use a default estimate of 2.9% + $0.30 per successful transaction.
 - Fixed expense allocation covers known software only and is not full accounting.
 
+### Phase 8B: Morning Brief UI and Last-24-Hour Activation
+
+Turned the home page into the Morning Brief dashboard.
+
+New files:
+
+- `src/lib/date-ranges.ts` - rolling last-24-hours window helpers and America/Chicago reporting-window formatting.
+- `src/lib/data/morning-brief.ts` - source-of-truth Morning Brief data layer.
+
+Updated:
+
+- `src/app/page.tsx` now renders Morning Brief instead of the older command-center chart layout.
+- `MEASUREMENT_PLAN.md`, `README.md`, and this handoff document document the new behavior.
+
+Behavior:
+
+- Default reporting window is rolling last 24 hours.
+- Timezone is America/Chicago.
+- Stripe is used for revenue, purchases, refunds, failed payments, and payment truth.
+- Meta Ads is used for ad spend and clicks.
+- GoHighLevel is used for leads when contact rows exist.
+- GA4-dependent metrics remain unavailable: landing page views, CTA clicks, and verified checkout starts.
+- Estimated Stripe fees use 2.9% + $0.30 per successful transaction.
+- Estimated profit uses Stripe net revenue minus Meta spend minus estimated Stripe fees minus fixed daily software allocation.
+- Top summary cards include source labels and exact/estimated/directional/unavailable status.
+- Today's Action Plan is capped at 5 actions and prioritizes source health, missing landing analytics, profit, pace, failed payments/refunds, and UTM coverage.
+
+Known limitations:
+
+- GA4 is still not connected.
+- No scheduled syncs exist.
+- Meta Ads rows are stored at daily granularity, so the Morning Brief includes Meta metric rows for the Chicago local dates touched by the rolling last-24-hour window. Hourly Meta insights would be needed for exact 24-hour spend.
+- GoHighLevel leads use `first_seen_at`; form submission and funnel event behavior still needs capability audit.
+- Estimated profit is not accounting-final and does not include taxes, contractors, chargebacks, or unknown expenses.
+
 ## 6. Current Integrations
 
 ### Stripe
@@ -616,19 +651,23 @@ Live/mock fallback rules:
 
 Current data source:
 
-- Stripe via `getRevenueData`
-- Meta via `getAdsData`
-- GoHighLevel via `getFunnelData` when contacts/opportunities exist
-- Creative/Instagram/source-health can still use mock fallback
+- `src/lib/data/morning-brief.ts`
+- Stripe tables: `transactions`, `failed_payments`, `refunds`
+- Meta table: `ad_daily_metrics`
+- GoHighLevel table: `ghl_contacts`
+- Sync health: `sync_runs`
+- Manual settings: `src/lib/business-settings.ts`
 
 Live or mock:
 
-- Partial live when Stripe/Meta/GoHighLevel are mixed with disconnected sources.
+- Source-of-truth mode. The home page does not import mock business rows.
+- Missing sources show `No data`, `Unavailable`, or `Not connected`.
 
 Needs work:
 
-- Continue verifying no disconnected source shows fake metrics as real.
-- Add real date range filtering across all live sources.
+- Add exact hourly Meta spend if needed; current Meta rows are daily.
+- Add GA4 for landing page views, CTA clicks, and verified checkout starts.
+- Add deeper GHL form/funnel event support after capability audit.
 
 ### `/revenue`
 
@@ -756,58 +795,57 @@ Needs work:
 
 ## 10. Current Best Next Task
 
-Recommended next task: **Phase 8B: Morning Brief UI and Last-24-Hour Activation**
+Recommended next task: **Phase 8C: GoHighLevel Capability Audit and Field Validation**
 
 Goal:
 
-- Use the Phase 8 measurement contract to make the Overview page default to a trustworthy Morning Brief.
-- Filter live Stripe, Meta, and GoHighLevel reads to the last 24 hours in America/Chicago.
-- Show source labels, estimated labels, and missing-data reasons on every top-line metric.
-- Keep GA4-dependent metrics unavailable until GA4 is actually connected and event tracking is verified.
-- Do not add Notion, Instagram, auth, deployment, or scheduled syncs yet.
+- Verify which GoHighLevel objects and analytics are actually accessible through the Private Integration API.
+- Harden GHL contact, opportunity, source, custom field, and UTM mapping against production payloads.
+- Decide whether GHL can provide forms, form submissions, funnel pages, payments/orders, and page/funnel analytics.
+- Keep the Morning Brief source-of-truth behavior intact.
 
 Use this exact prompt:
 
 ```text
-Implement Phase 8B: Morning Brief UI and Last-24-Hour Activation.
+Implement Phase 8C: GoHighLevel capability audit and field validation.
 
 Goals:
-1. Turn Overview into the Morning Brief defined in MEASUREMENT_PLAN.md.
-2. Default reporting to the last 24 hours in America/Chicago.
-3. Use Phase 8 source-of-truth rules for every metric display.
+1. Verify what GoHighLevel can actually expose through the current Private Integration API.
+2. Harden field mappings for contacts, opportunities, custom fields, tags, source fields, and UTM attribution.
+3. Decide whether GoHighLevel can supply form submissions, funnel pages, payments/orders, transactions, and page/funnel analytics.
 
 Tasks:
 1. Read MEASUREMENT_PLAN.md and SOURCE_OF_TRUTH.md before changing code.
-2. Add a reusable Morning Brief data shape using Stripe, Meta, GoHighLevel, and manual settings only.
-3. Apply last-24-hour filtering to Overview data without changing sync routes.
-4. Show unavailable states for GA4-only metrics: landing page views, CTA clicks, and verified checkout starts.
-5. Label estimated profit, blended CPA, blended ROAS, and goal progress as estimated/directional where appropriate.
-6. Generate a plain-English summary and 3 to 5 action items based only on verified data.
-7. Add tests for date filtering, missing-data states, and no recommendations from missing data.
-8. Run:
+2. Run manual GoHighLevel sync with production env vars.
+3. Inspect latest ghl_contacts, ghl_opportunities, and sync_runs rows.
+4. Compare normalized dashboard rows to GoHighLevel UI records.
+5. Audit whether the API can pull contacts, opportunities, forms, form submissions, funnels, funnel pages, payments/orders, transactions, custom fields, attribution/source fields, UTM fields, page/funnel analytics, Google Analytics-connected metrics, and Meta dashboard-connected metrics.
+6. Improve mappings only where verified by real payload shape.
+7. Document what GHL cannot expose and whether GA4 direct is required for landing page analytics.
+8. Add tests for any mapping changes.
+9. Run:
    npm test
    npm run lint
    npm run build
 
 Important:
-Do not add GA4 API integration yet.
-Do not add scheduled sync.
 Do not change Stripe, Meta, or GoHighLevel sync behavior.
-Do not mix mock rows with live rows.
+Do not expose GHL_API_KEY client-side.
+Do not add scheduled sync yet.
+Do not add GA4 API integration yet.
 ```
 
-## 11. Roadmap After Phase 8
+## 11. Roadmap After Phase 8B
 
 Recommended order:
 
-1. Phase 8B: Morning Brief UI and last-24-hour activation
-2. Phase 8C: GoHighLevel capability audit and field validation
-3. Phase 8D: GA4 tracking specification and tag plan
-4. Phase 9: Basic auth / password gate
-5. Phase 10: Deploy to Vercel
-6. Phase 11: Scheduled syncs
-7. Phase 12: Notion creative tracker integration
-8. Phase 13: Instagram insights
+1. Phase 8C: GoHighLevel capability audit and field validation
+2. Phase 8D: GA4 tracking specification and tag plan
+3. Phase 9: Basic auth / password gate
+4. Phase 10: Deploy to Vercel
+5. Phase 11: Scheduled syncs
+6. Phase 12: Notion creative tracker integration
+7. Phase 13: Instagram insights
 
 ## 12. Git Workflow
 

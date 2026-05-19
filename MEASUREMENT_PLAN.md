@@ -82,6 +82,8 @@ All fee/profit/goal helpers are cents-based. Estimated outputs must be labeled a
 Default window: **Last 24 hours**  
 Timezone: **America/Chicago**
 
+Phase 8B implementation status: the home page now uses `src/lib/data/morning-brief.ts` and `src/lib/date-ranges.ts` to render a source-of-truth Morning Brief. It reads live Stripe, Meta Ads, GoHighLevel, and sync metadata rows where available, filters them to the rolling last 24 hours, and returns missing states instead of mock business values.
+
 ### 1. Top Summary
 
 - Net revenue, source: Stripe
@@ -131,6 +133,8 @@ Show:
 - GoHighLevel: live/stale/failed
 - GA4: not connected
 - UTM tracking: healthy/partial/broken
+
+Known Phase 8B limitation: Meta Ads insight rows are currently stored at daily granularity, so the Morning Brief includes Meta metric rows whose `metric_date` matches either local Chicago date touched by the rolling 24-hour window. This is a practical approximation until hourly Meta insights or scheduled sync/windowed aggregation are added.
 
 ## Strict Missing-Data Behavior
 

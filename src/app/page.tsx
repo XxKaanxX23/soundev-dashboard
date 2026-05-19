@@ -1,329 +1,207 @@
-import { AlertCallout } from "@/components/dashboard/alert-callout";
-import { BarChartCard } from "@/components/dashboard/bar-chart-card";
-import { ComposedChartCard } from "@/components/dashboard/composed-chart-card";
-import { DataHealthPanel } from "@/components/dashboard/data-health-panel";
-import { DataModeBadge } from "@/components/dashboard/data-mode-badge";
-import { DataTable, type DataTableColumn } from "@/components/dashboard/data-table";
-import { DataTrustPanel } from "@/components/dashboard/data-trust-panel";
-import { KPICard } from "@/components/dashboard/kpi-card";
-import { LineChartCard } from "@/components/dashboard/line-chart-card";
-import { NextActionsPanel } from "@/components/dashboard/next-actions-panel";
 import { PageSection } from "@/components/dashboard/page-section";
-import { SourceFreshness } from "@/components/dashboard/source-freshness";
+import { KPICard } from "@/components/dashboard/kpi-card";
 import { StatusBadge } from "@/components/dashboard/status-badge";
-import { getSourceFreshness } from "@/lib/data/freshness";
-import { getOverviewData } from "@/lib/data/overview";
-import { chartPalette } from "@/components/dashboard/chart-renderers";
-import type { MetaAd, StripeTransaction } from "@/lib/types";
-import {
-  formatCurrency,
-  formatCurrencyPrecise,
-  formatNumber,
-  formatPercent,
-  formatRatio,
-} from "@/lib/utils";
+import { getMorningBriefData } from "@/lib/data/morning-brief";
 
-
-const topAdColumns: DataTableColumn<MetaAd>[] = [
-  { header: "Campaign", accessor: "campaign" },
-  { header: "Ad", accessor: "adName" },
-  { header: "Spend", accessor: (row) => formatCurrency(row.spend), align: "right" },
-  { header: "Purchases", accessor: (row) => formatNumber(row.purchases), align: "right" },
-  { header: "CPA", accessor: (row) => formatCurrencyPrecise(row.cpa), align: "right" },
-  { header: "ROAS", accessor: (row) => formatRatio(row.roas), align: "right" },
-  { header: "Status", accessor: (row) => <StatusBadge status={row.status} /> },
-];
-
-type RevenueTrendPoint = {
-  date: string;
-  grossRevenue: number;
-  adSpend: number;
-};
-
-function buildRevenueVsSpendSeries(
-  stripeTransactions: StripeTransaction[],
-  metaAds: MetaAd[],
-): RevenueTrendPoint[] {
-  const byDate = new Map<string, { grossRevenue: number; adSpend: number; ts: number }>();
-
-  stripeTransactions.forEach((row) => {
-    if (row.status !== "succeeded") return;
-    const ts = new Date(row.eventTimestamp ?? row.purchaseTimestamp).getTime();
-    if (Number.isNaN(ts)) return;
-    const d = new Date(ts);
-    const date = `${d.getMonth() + 1}/${d.getDate()}`;
-    const cur = byDate.get(date) ?? { grossRevenue: 0, adSpend: 0, ts };
-    cur.grossRevenue += row.amount;
-    cur.ts = Math.min(cur.ts, ts);
-    byDate.set(date, cur);
-  });
-
-  // Aggregate ad spend by date from metaAds
-  metaAds.forEach((ad) => {
-    if (!ad.dateStart) return;
-    const d = new Date(ad.dateStart + "T00:00:00");
-    const date = `${d.getMonth() + 1}/${d.getDate()}`;
-    const cur = byDate.get(date) ?? { grossRevenue: 0, adSpend: 0, ts: d.getTime() };
-    cur.adSpend += ad.spend;
-    byDate.set(date, cur);
-  });
-
-  return [...byDate.entries()]
-    .sort(([, a], [, b]) => a.ts - b.ts)
-    .map(([date, v]) => ({ date, grossRevenue: v.grossRevenue, adSpend: v.adSpend }));
+function sourceLabel(source: string, classification: string) {
+  return `${source} · ${classification}`;
 }
 
-type FunnelBarPoint = { stage: string; count: number };
+function metricTone(label: string, value: string) {
+  if (label === "Estimated Profit" && value.startsWith("-")) {
+    return "danger" as const;
+  }
 
-export default async function OverviewPage() {
-  const [overview, stripeFreshness, metaFreshness] = await Promise.all([
-    getOverviewData(),
-    getSourceFreshness("Stripe"),
-    getSourceFreshness("Meta Ads"),
-  ]);
-  const {
-    adsMode,
-    breakEvenCPA,
-    channelRevenue,
-    dataHealthItems,
-    dataTrustItems,
-    dashboardSnapshot,
-    displayMetrics,
-    metricAlerts,
-    metaAds,
-    metaRevenueWarning,
-    mode,
-    nextActions,
-    overviewMetrics,
-    revenueMode,
-    revenueTrend,
-    stripeFees,
-    stripeTransactions,
-    utmCoverage,
-  } = overview;
+  if (label === "Estimated Profit") {
+    return "positive" as const;
+  }
 
-  const revenueVsSpend = buildRevenueVsSpendSeries(stripeTransactions, metaAds);
-  const funnelBar: FunnelBarPoint[] = [
-    { stage: "Leads", count: dashboardSnapshot.leads },
-    { stage: "Purchases", count: dashboardSnapshot.successfulPurchases },
-    { stage: "Refunds", count: dashboardSnapshot.refunds },
-    { stage: "Failed", count: dashboardSnapshot.failedPayments },
-  ].filter((p) => p.count > 0);
+  return "neutral" as const;
+}
+
+export default async function MorningBriefPage() {
+  const brief = await getMorningBriefData();
 
   return (
     <div className="space-y-6">
       <section>
-        <div className="mb-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-xl font-semibold text-zinc-50">
-              Overview / Command Center
-            </h2>
-            <DataModeBadge mode={mode} />
-          </div>
-          <p className="mt-1 text-sm text-zinc-500">
-            Operating view for Drum Mastery Suite at a $67 price point.
-          </p>
-        </div>
-        <div className="mb-6 grid gap-3 lg:grid-cols-2">
-          {/* BUG FIX: Pass source-specific modes, not the combined page mode */}
-          <SourceFreshness
-            provider="Stripe"
-            mode={revenueMode}
-            label={stripeFreshness.label}
-            detail={stripeFreshness.detail}
-            status={stripeFreshness.status}
-          />
-          <SourceFreshness
-            provider="Meta Ads"
-            mode={adsMode}
-            label={metaFreshness.label}
-            detail={metaFreshness.detail}
-            status={metaFreshness.status}
-          />
-        </div>
-
-        {metaRevenueWarning && adsMode !== "mock" && (
-          <div className="mb-4 rounded-md border border-amber-400/20 bg-amber-400/10 px-4 py-3">
-            <p className="text-sm text-amber-200">
-              <strong>Meta revenue unavailable.</strong> Ad spend and purchase data is live, but
-              action_values/revenue are not reported for this account. ROAS will show 0 until
-              Meta shares conversion values.
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-zinc-50">Morning Brief</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Last 24 hours · Chicago time · {brief.reportingWindowLabel}
             </p>
           </div>
-        )}
+          <div className="rounded-full border border-sd-border-strong bg-sd-surface-elevated px-3 py-1 text-xs font-medium uppercase tracking-[0.14em] text-sky-200/80">
+            Source-of-truth mode
+          </div>
+        </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <KPICard
-            label="Gross revenue"
-            value={formatCurrency(overviewMetrics.grossRevenue)}
-            source="Stripe"
-          />
-          <KPICard
-            label="Net revenue"
-            value={formatCurrency(overviewMetrics.netRevenue)}
-            source="Stripe"
-          />
-          <KPICard
-            label="Ad spend"
-            value={formatCurrency(overviewMetrics.adSpend)}
-            source="Meta Ads"
-          />
-          <KPICard
-            label="Estimated profit"
-            value={formatCurrency(overviewMetrics.estimatedProfit)}
-            source="Stripe + Meta Ads"
-            tone="positive"
-          />
-          <KPICard
-            label="Est. Stripe fees"
-            value={formatCurrencyPrecise(stripeFees)}
-            source="Stripe estimate"
-            helper="Estimated using 2.9% plus $0.30 per successful payment. This is a planning estimate, not an accounting ledger."
-          />
-          <KPICard
-            label="Break-even CPA"
-            value={formatCurrencyPrecise(breakEvenCPA)}
-            source="$67 product model"
-            helper="Break-even CPA is product price minus estimated Stripe fee per purchase."
-          />
-          <KPICard
-            label="Purchases"
-            value={formatNumber(overviewMetrics.purchases)}
-            source="Stripe"
-          />
-          <KPICard
-            label="Refunds"
-            value={formatNumber(overviewMetrics.refunds)}
-            source="Stripe"
-            detail={`${formatPercent(overviewMetrics.refundRate)} refund rate`}
-            helper="Refund rate shows what share of buyers requested money back. A high rate can point to expectation or onboarding issues."
-            tone="warning"
-          />
-          <KPICard
-            label="Failed payments"
-            value={formatNumber(overviewMetrics.failedPayments)}
-            source="Stripe"
-            detail={`${formatPercent(overviewMetrics.failedPaymentRate)} failed payment rate`}
-            helper="Failed payment rate is failed payments divided by checkout starts. It shows how much demand is being lost at payment."
-            tone="danger"
-          />
-          <KPICard
-            label="Leads"
-            value={displayMetrics.leads.value}
-            source={displayMetrics.leads.source}
-            helper={displayMetrics.leads.helper}
-          />
-          <KPICard
-            label="Cost per purchase"
-            value={formatCurrencyPrecise(overviewMetrics.cpa)}
-            source="Meta Ads + Stripe"
-            helper="CPA is ad spend divided by purchases. Lower is better because each sale costs less to acquire."
-            tone="warning"
-          />
-          <KPICard
-            label="ROAS"
-            value={formatRatio(overviewMetrics.roas)}
-            source="Stripe revenue + Meta spend"
-            helper="ROAS is revenue divided by ad spend. 2.00x means every $1 in ads produced $2 in revenue."
-            tone="danger"
-          />
-          <KPICard
-            label="Lead-to-purchase"
-            value={displayMetrics.leadToPurchase.value}
-            source={displayMetrics.leadToPurchase.source}
-            helper={displayMetrics.leadToPurchase.helper}
-          />
-          <KPICard
-            label="Checkout starts"
-            value={displayMetrics.checkoutStarts.value}
-            source={displayMetrics.checkoutStarts.source}
-            helper={displayMetrics.checkoutStarts.helper}
-          />
-          <KPICard
-            label="UTM coverage"
-            value={formatPercent(utmCoverage.coverageRate)}
-            source="Stripe metadata"
-            detail={`${utmCoverage.trackedPurchases} of ${utmCoverage.totalPurchases} recent purchases fully tagged`}
-            helper="UTM coverage is the share of purchases with source, campaign, and content tracking. Higher coverage means cleaner attribution."
-          />
+          {brief.topSummary.map((metric) => (
+            <KPICard
+              key={metric.label}
+              label={metric.label}
+              value={metric.value}
+              source={sourceLabel(metric.source, metric.classification)}
+              detail={metric.detail}
+              tone={metricTone(metric.label, metric.value)}
+            />
+          ))}
         </div>
       </section>
 
-      <DataTrustPanel items={dataTrustItems} />
+      <section className="soundev-card rounded-lg p-5">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-zinc-50">
+              What happened
+            </h3>
+            <p className="mt-1 text-sm text-zinc-500">
+              Generated from verified sources only. Missing metrics stay marked.
+            </p>
+          </div>
+          <StatusBadge status={brief.hasAnyLiveRows ? "live" : "no data"} />
+        </div>
+        <p className="max-w-5xl text-sm leading-6 text-zinc-300">
+          {brief.summary}
+        </p>
+      </section>
 
-      {/* Revenue vs Ad Spend chart */}
-      {revenueVsSpend.length > 0 && (
-        <PageSection
-          title="Revenue vs. Ad Spend"
-          description="Daily gross revenue and ad spend trend from live Stripe and Meta data."
-        >
-          <ComposedChartCard
-            title="Revenue vs. Ad Spend by day"
-            data={revenueVsSpend}
-            xKey="date"
-            bars={[{ key: "adSpend", label: "Ad Spend", color: chartPalette.muted }]}
-            lines={[{ key: "grossRevenue", label: "Gross Revenue", color: chartPalette.primary }]}
-          />
-        </PageSection>
-      )}
+      <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+        <section className="soundev-card rounded-lg p-5">
+          <div className="mb-4">
+            <h3 className="text-base font-semibold text-zinc-50">
+              Today&apos;s Action Plan
+            </h3>
+            <p className="mt-1 text-sm text-zinc-500">
+              Ordered by source health, missing measurement, profitability, pace, and tracking.
+            </p>
+          </div>
+          <div className="space-y-3">
+            {brief.actionItems.map((action, index) => (
+              <div
+                key={action.id}
+                className="rounded-lg border border-sd-border bg-sd-surface-elevated/70 p-4"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-sd-border-strong bg-sd-accent/[0.12] text-xs font-semibold text-sky-100">
+                    {index + 1}
+                  </span>
+                  <div>
+                    <h4 className="text-sm font-semibold text-zinc-100">
+                      {action.title}
+                    </h4>
+                    <p className="mt-1 text-sm leading-5 text-zinc-500">
+                      {action.body}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
 
-      {/* Funnel conversion overview */}
-      {funnelBar.length > 0 && (
-        <PageSection
-          title="Funnel conversion snapshot"
-          description="Leads, purchases, refunds, and failed payments — all from live sources."
-        >
-          <BarChartCard
-            title="Funnel volumes"
-            data={funnelBar}
-            xKey="stage"
-            yKey="count"
-            label="Count"
-          />
-        </PageSection>
-      )}
+        <section className="soundev-card rounded-lg p-5">
+          <div className="mb-4">
+            <h3 className="text-base font-semibold text-zinc-50">Data Health</h3>
+            <p className="mt-1 text-sm text-zinc-500">
+              Source status for this Morning Brief. Secrets are never shown.
+            </p>
+          </div>
+          <div className="space-y-3">
+            {brief.dataHealth.map((item) => (
+              <div
+                key={item.source}
+                className="flex flex-col gap-2 rounded-lg border border-sd-border bg-sd-surface-elevated/70 p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-zinc-100">
+                    {item.source}
+                  </p>
+                  <p className="mt-1 text-sm leading-5 text-zinc-500">
+                    {item.detail}
+                  </p>
+                  {item.lastSyncedAt ? (
+                    <p className="mt-1 text-xs uppercase tracking-[0.12em] text-sky-300/60">
+                      Last sync: {new Date(item.lastSyncedAt).toLocaleString("en-US")}
+                    </p>
+                  ) : null}
+                </div>
+                <StatusBadge status={item.status.replace("_", "-")} />
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
 
       <PageSection
-        title="Warnings and opportunities"
-        description="These callouts are generated from the current dashboard metrics and trust checks."
+        title="Funnel Snapshot"
+        description="GA4-dependent behavior metrics stay unavailable until GA4 and event tracking are configured."
       >
-        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-          {metricAlerts.map((alert) => (
-            <AlertCallout key={alert.id} alert={alert} />
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {Object.values(brief.funnelSnapshot).map((metric) => (
+            <KPICard
+              key={metric.label}
+              label={metric.label}
+              value={metric.value}
+              source={sourceLabel(metric.source, metric.classification)}
+              detail={metric.detail}
+            />
           ))}
         </div>
       </PageSection>
 
-      <div className="grid gap-4 xl:grid-cols-[.95fr_1.05fr]">
-        <NextActionsPanel actions={nextActions} />
-        <DataHealthPanel items={dataHealthItems} />
-      </div>
+      <PageSection
+        title="Profit / Cashflow Estimate"
+        description="This is operating guidance, not accounting-final profit."
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {brief.profitCashflow.map((item) => (
+            <section
+              key={item.label}
+              className="soundev-card soundev-card-hover rounded-lg p-4"
+            >
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-zinc-500">
+                {item.label}
+              </p>
+              <p className="mt-3 text-2xl font-semibold text-zinc-50">
+                {item.value}
+              </p>
+              <p className="mt-2 text-xs font-medium uppercase tracking-[0.12em] text-sky-300/60">
+                Source: {item.source} · {item.classification}
+              </p>
+              {item.detail ? (
+                <p className="mt-2 text-sm leading-5 text-zinc-500">
+                  {item.detail}
+                </p>
+              ) : null}
+            </section>
+          ))}
+        </div>
+      </PageSection>
 
-      <div className="grid gap-4 xl:grid-cols-[1.3fr_.7fr]">
-        <LineChartCard
-          title="Revenue trend"
-          data={revenueTrend}
-          xKey="date"
-          lines={[
-            { key: "grossRevenue", label: "Gross revenue" },
-            { key: "netRevenue", label: "Net revenue", color: "var(--sd-accent-bright)" },
-          ]}
-        />
-        <BarChartCard
-          title="Revenue by source"
-          data={channelRevenue}
-          xKey="channel"
-          yKey="revenue"
-          label="Revenue"
-        />
-      </div>
-
-      <PageSection title="Top paid acquisition signals">
-        <DataTable
-          columns={topAdColumns}
-          data={metaAds}
-          getRowId={(row, index) => row.id ?? `${row.adId}-${row.dateStart}-${index}`}
-        />
+      <PageSection
+        title="Unavailable Metrics"
+        description="These are intentionally not estimated or mocked."
+      >
+        <div className="grid gap-3 lg:grid-cols-3">
+          {brief.unavailableMetrics.map((metric) => (
+            <section key={metric.label} className="soundev-card rounded-lg p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-zinc-100">
+                    {metric.label}
+                  </p>
+                  <p className="mt-2 text-sm leading-5 text-zinc-500">
+                    {metric.detail}
+                  </p>
+                </div>
+                <StatusBadge status="not-connected" />
+              </div>
+            </section>
+          ))}
+        </div>
       </PageSection>
     </div>
   );

@@ -4,6 +4,35 @@ Private analytics dashboard prototype for Soundev's Drum Mastery Suite.
 
 This app supports mock/demo mode plus optional server-side live reads from Supabase. Stripe, Meta Ads, and GoHighLevel integration foundations are in place. Notion, Instagram, authentication, deployment, and scheduled syncs are not connected yet.
 
+## Morning Brief
+
+The home page (`/`) is the Morning Brief dashboard.
+
+Default behavior:
+
+- Reporting window: rolling last 24 hours
+- Timezone: America/Chicago
+- Revenue and purchases source: Stripe
+- Ad spend source: Meta Ads
+- Leads source: GoHighLevel
+- Product price: $67
+- Monthly revenue goal: $30,000
+- Daily pace targets: about $1,000 revenue and 15 purchases
+
+The Morning Brief does not use mock business data when live rows exist. If a source has no live rows, the UI shows `No data`, `Unavailable`, or `Not connected` instead of fake numbers.
+
+Unavailable until future GA4 work:
+
+- Landing page views
+- CTA clicks
+- Verified checkout starts
+
+Estimated metrics:
+
+- Stripe fees use 2.9% + $0.30 per successful transaction.
+- Estimated profit = Stripe net revenue - Meta ad spend - estimated Stripe fees - fixed daily software allocation.
+- Fixed daily software allocation currently uses known software only: GoHighLevel and ChatGPT.
+
 ## Local Development
 
 ```bash
