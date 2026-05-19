@@ -2,11 +2,15 @@ import Link from "next/link";
 import { DataTable, type DataTableColumn } from "@/components/dashboard/data-table";
 import { DataModeBadge } from "@/components/dashboard/data-mode-badge";
 import { KPICard } from "@/components/dashboard/kpi-card";
+import { LineChartCard } from "@/components/dashboard/line-chart-card";
+import { MultiBarChartCard } from "@/components/dashboard/multi-bar-chart-card";
+import { BarChartCard } from "@/components/dashboard/bar-chart-card";
 import { PageSection } from "@/components/dashboard/page-section";
 import { SourceFreshness } from "@/components/dashboard/source-freshness";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { getSourceFreshness } from "@/lib/data/freshness";
 import { getRevenueData } from "@/lib/data/revenue";
+import { chartPalette } from "@/components/dashboard/chart-renderers";
 import type { StripeTransaction } from "@/lib/types";
 import {
   formatCurrency,
@@ -85,6 +89,60 @@ const columns: DataTableColumn<StripeTransaction>[] = [
   { header: "Status", accessor: (row) => <StatusBadge status={row.status} /> },
 ];
 
+type DailyRevenuePoint = {
+  date: string;
+  grossRevenue: number;
+  netRevenue: number;
+  purchases: number;
+  refunds: number;
+  ts: number;
+};
+
+function buildDailyRevenueSeries(rows: StripeTransaction[]): DailyRevenuePoint[] {
+  const byDate = new Map<string, DailyRevenuePoint>();
+
+  rows.forEach((row) => {
+    const ts = new Date(row.eventTimestamp ?? row.purchaseTimestamp).getTime();
+    if (Number.isNaN(ts)) return;
+    const d = new Date(ts);
+    const date = `${d.getMonth() + 1}/${d.getDate()}`;
+    const cur = byDate.get(date) ?? {
+      date,
+      grossRevenue: 0,
+      netRevenue: 0,
+      purchases: 0,
+      refunds: 0,
+      ts,
+    };
+    if (row.status === "succeeded") {
+      cur.grossRevenue += row.amount;
+      cur.netRevenue += row.amount;
+      cur.purchases += 1;
+    } else if (row.status === "refunded") {
+      cur.netRevenue -= row.amount;
+      cur.refunds += 1;
+    }
+    cur.ts = Math.min(cur.ts, ts);
+    byDate.set(date, cur);
+  });
+
+  return [...byDate.values()].sort((a, b) => a.ts - b.ts);
+}
+
+type FailureCodePoint = { code: string; count: number };
+
+function buildFailureCodeSeries(rows: StripeTransaction[]): FailureCodePoint[] {
+  const counts = new Map<string, number>();
+  rows.forEach((row) => {
+    if (row.status !== "failed") return;
+    const code = (row as StripeTransaction & { failureCode?: string }).failureCode ?? "unknown";
+    counts.set(code, (counts.get(code) ?? 0) + 1);
+  });
+  return [...counts.entries()]
+    .map(([code, count]) => ({ code, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
 export default async function RevenuePage({
   searchParams,
 }: {
@@ -102,6 +160,9 @@ export default async function RevenuePage({
     activeFilter,
     search,
   );
+
+  const dailyRevenue = mode !== "mock" ? buildDailyRevenueSeries(stripeTransactions) : [];
+  const failureCodes = mode !== "mock" ? buildFailureCodeSeries(stripeTransactions) : [];
 
   return (
     <div className="space-y-6">
@@ -146,6 +207,40 @@ export default async function RevenuePage({
           />
         </div>
       </PageSection>
+
+      {/* Revenue charts — only when live data exists */}
+      {dailyRevenue.length > 0 && (
+        <div className="grid gap-4 xl:grid-cols-2">
+          <LineChartCard
+            title="Daily revenue"
+            data={dailyRevenue}
+            xKey="date"
+            lines={[
+              { key: "grossRevenue", label: "Gross revenue", color: chartPalette.primary },
+              { key: "netRevenue", label: "Net revenue", color: chartPalette.secondary },
+            ]}
+          />
+          <MultiBarChartCard
+            title="Purchases vs. Refunds by day"
+            data={dailyRevenue}
+            xKey="date"
+            bars={[
+              { key: "purchases", label: "Purchases", color: chartPalette.primary },
+              { key: "refunds", label: "Refunds", color: chartPalette.danger },
+            ]}
+          />
+        </div>
+      )}
+
+      {failureCodes.length > 0 && (
+        <BarChartCard
+          title="Failed payments by failure code"
+          data={failureCodes}
+          xKey="code"
+          yKey="count"
+          label="Failed payments"
+        />
+      )}
 
       <PageSection title="Recent Stripe-style events">
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

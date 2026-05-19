@@ -89,6 +89,8 @@ export function normalizeAds({
       spend,
       impressions: metric.impressions,
       clicks: metric.clicks,
+      reach: (metric as AdDailyMetric & { reach?: number }).reach ?? 0,
+      frequency: (metric as AdDailyMetric & { frequency?: number }).frequency ?? 0,
       ctr: rate(metric.clicks, metric.impressions),
       cpc: rate(spend, metric.clicks),
       cpm: rate(spend * 1000, metric.impressions),
@@ -164,12 +166,14 @@ export function buildAdsDataFromRows({
   mode: DataMode;
   metaAds: MetaAd[];
   overviewMetrics: BusinessMetrics;
+  metaRevenueWarning: boolean;
 } {
   if (metrics.length === 0) {
     return {
       mode: "mock",
       metaAds: mockMetaAds,
       overviewMetrics,
+      metaRevenueWarning: false,
     };
   }
 
@@ -177,11 +181,14 @@ export function buildAdsDataFromRows({
   const mode = hasCompleteJoins({ campaigns, adSets, ads, metrics })
     ? "live"
     : "partial";
+  const totalRevenueCents = metrics.reduce((sum, m) => sum + m.revenue_cents, 0);
+  const metaRevenueWarning = totalRevenueCents === 0;
 
   return {
     mode,
     metaAds,
     overviewMetrics: buildOverviewMetrics(metaAds),
+    metaRevenueWarning,
   };
 }
 
@@ -216,6 +223,7 @@ export async function getAdsData() {
       mode: "mock" as const,
       metaAds: mockMetaAds,
       overviewMetrics,
+      metaRevenueWarning: false,
     };
   }
 
@@ -227,6 +235,7 @@ export async function getAdsData() {
       mode: "mock" as const,
       metaAds: mockMetaAds,
       overviewMetrics,
+      metaRevenueWarning: false,
     };
   }
 
@@ -247,6 +256,7 @@ export async function getAdsData() {
       mode: "mock" as const,
       metaAds: mockMetaAds,
       overviewMetrics,
+      metaRevenueWarning: false,
     };
   }
 

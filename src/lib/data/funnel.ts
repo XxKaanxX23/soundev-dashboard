@@ -38,17 +38,24 @@ export type FunnelContactRow = {
   phone: string;
   source: string;
   campaign: string;
+  utmSource: string;
+  utmMedium: string;
+  utmContent: string;
+  tags: string[];
   firstSeenAt: string;
+  updatedAt: string;
 };
 
 export type FunnelOpportunityRow = {
   id: string;
   contactId: string;
   stage: string;
+  pipelineName: string;
   status: string;
   value: number;
   source: string;
   openedAt: string;
+  updatedAt: string;
 };
 
 export type FunnelSourceRow = {
@@ -119,7 +126,14 @@ export function normalizeGhlContacts(rows: GhlContact[]): FunnelContactRow[] {
     phone: contact.phone ?? "",
     source: contactSource(contact),
     campaign: contact.utm_campaign ?? "",
+    utmSource: contact.utm_source ?? "",
+    utmMedium: contact.utm_medium ?? "",
+    utmContent: contact.utm_content ?? "",
+    tags: Array.isArray(contact.tags)
+      ? contact.tags.filter((t): t is string => typeof t === "string")
+      : [],
     firstSeenAt: formatTimestamp(contact.first_seen_at),
+    updatedAt: formatTimestamp(contact.updated_at),
   }));
 }
 
@@ -133,10 +147,12 @@ export function normalizeGhlOpportunities(
       opportunity.pipeline_stage_name ??
       opportunity.stage_name ??
       "Unknown stage",
+    pipelineName: opportunity.pipeline_name ?? "",
     status: opportunity.status,
     value: dollars(opportunity.value_cents),
     source: opportunity.lead_source ?? opportunity.utm_source ?? "Untracked",
     openedAt: formatTimestamp(opportunity.opened_at),
+    updatedAt: formatTimestamp(opportunity.updated_at),
   }));
 }
 
@@ -231,10 +247,15 @@ export function buildFunnelDataFromRows({
       opportunities: [] as FunnelOpportunityRow[],
       topSources: [] as FunnelSourceRow[],
       utmCoverage: calculateUtmCoverage([]),
+      opportunitiesNote: null as string | null,
     };
   }
 
   const mode: DataMode = contacts.length > 0 ? "live" : "partial";
+  const opportunitiesNote =
+    opportunities.length === 0 && mode === "live"
+      ? "No opportunities found. This may be normal if this GHL location does not use pipelines."
+      : null;
   const checkoutStarts = opportunities.length;
   const overviewMetrics: BusinessMetrics = calculateBusinessMetrics({
     grossRevenue: purchases * 67,
@@ -271,6 +292,7 @@ export function buildFunnelDataFromRows({
     opportunities: normalizeGhlOpportunities(opportunities),
     topSources: topSourcesFromContacts(contacts),
     utmCoverage,
+    opportunitiesNote,
   };
 }
 

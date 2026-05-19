@@ -1,5 +1,6 @@
 import { AlertCallout } from "@/components/dashboard/alert-callout";
 import { BarChartCard } from "@/components/dashboard/bar-chart-card";
+import { ComposedChartCard } from "@/components/dashboard/composed-chart-card";
 import { DataHealthPanel } from "@/components/dashboard/data-health-panel";
 import { DataModeBadge } from "@/components/dashboard/data-mode-badge";
 import { DataTable, type DataTableColumn } from "@/components/dashboard/data-table";
@@ -12,7 +13,8 @@ import { SourceFreshness } from "@/components/dashboard/source-freshness";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { getSourceFreshness } from "@/lib/data/freshness";
 import { getOverviewData } from "@/lib/data/overview";
-import type { MetaAd } from "@/lib/types";
+import { chartPalette } from "@/components/dashboard/chart-renderers";
+import type { MetaAd, StripeTransaction } from "@/lib/types";
 import {
   formatCurrency,
   formatCurrencyPrecise,
@@ -20,6 +22,7 @@ import {
   formatPercent,
   formatRatio,
 } from "@/lib/utils";
+
 
 const topAdColumns: DataTableColumn<MetaAd>[] = [
   { header: "Campaign", accessor: "campaign" },
@@ -31,6 +34,47 @@ const topAdColumns: DataTableColumn<MetaAd>[] = [
   { header: "Status", accessor: (row) => <StatusBadge status={row.status} /> },
 ];
 
+type RevenueTrendPoint = {
+  date: string;
+  grossRevenue: number;
+  adSpend: number;
+};
+
+function buildRevenueVsSpendSeries(
+  stripeTransactions: StripeTransaction[],
+  metaAds: MetaAd[],
+): RevenueTrendPoint[] {
+  const byDate = new Map<string, { grossRevenue: number; adSpend: number; ts: number }>();
+
+  stripeTransactions.forEach((row) => {
+    if (row.status !== "succeeded") return;
+    const ts = new Date(row.eventTimestamp ?? row.purchaseTimestamp).getTime();
+    if (Number.isNaN(ts)) return;
+    const d = new Date(ts);
+    const date = `${d.getMonth() + 1}/${d.getDate()}`;
+    const cur = byDate.get(date) ?? { grossRevenue: 0, adSpend: 0, ts };
+    cur.grossRevenue += row.amount;
+    cur.ts = Math.min(cur.ts, ts);
+    byDate.set(date, cur);
+  });
+
+  // Aggregate ad spend by date from metaAds
+  metaAds.forEach((ad) => {
+    if (!ad.dateStart) return;
+    const d = new Date(ad.dateStart + "T00:00:00");
+    const date = `${d.getMonth() + 1}/${d.getDate()}`;
+    const cur = byDate.get(date) ?? { grossRevenue: 0, adSpend: 0, ts: d.getTime() };
+    cur.adSpend += ad.spend;
+    byDate.set(date, cur);
+  });
+
+  return [...byDate.entries()]
+    .sort(([, a], [, b]) => a.ts - b.ts)
+    .map(([date, v]) => ({ date, grossRevenue: v.grossRevenue, adSpend: v.adSpend }));
+}
+
+type FunnelBarPoint = { stage: string; count: number };
+
 export default async function OverviewPage() {
   const [overview, stripeFreshness, metaFreshness] = await Promise.all([
     getOverviewData(),
@@ -38,20 +82,33 @@ export default async function OverviewPage() {
     getSourceFreshness("Meta Ads"),
   ]);
   const {
+    adsMode,
     breakEvenCPA,
     channelRevenue,
     dataHealthItems,
     dataTrustItems,
+    dashboardSnapshot,
     displayMetrics,
     metricAlerts,
     metaAds,
+    metaRevenueWarning,
     mode,
     nextActions,
     overviewMetrics,
+    revenueMode,
     revenueTrend,
     stripeFees,
+    stripeTransactions,
     utmCoverage,
   } = overview;
+
+  const revenueVsSpend = buildRevenueVsSpendSeries(stripeTransactions, metaAds);
+  const funnelBar: FunnelBarPoint[] = [
+    { stage: "Leads", count: dashboardSnapshot.leads },
+    { stage: "Purchases", count: dashboardSnapshot.successfulPurchases },
+    { stage: "Refunds", count: dashboardSnapshot.refunds },
+    { stage: "Failed", count: dashboardSnapshot.failedPayments },
+  ].filter((p) => p.count > 0);
 
   return (
     <div className="space-y-6">
@@ -64,25 +121,37 @@ export default async function OverviewPage() {
             <DataModeBadge mode={mode} />
           </div>
           <p className="mt-1 text-sm text-zinc-500">
-            7-day operating view for Drum Mastery Suite at a $67 price point.
+            Operating view for Drum Mastery Suite at a $67 price point.
           </p>
         </div>
         <div className="mb-6 grid gap-3 lg:grid-cols-2">
+          {/* BUG FIX: Pass source-specific modes, not the combined page mode */}
           <SourceFreshness
             provider="Stripe"
-            mode={mode}
+            mode={revenueMode}
             label={stripeFreshness.label}
             detail={stripeFreshness.detail}
             status={stripeFreshness.status}
           />
           <SourceFreshness
             provider="Meta Ads"
-            mode={mode}
+            mode={adsMode}
             label={metaFreshness.label}
             detail={metaFreshness.detail}
             status={metaFreshness.status}
           />
         </div>
+
+        {metaRevenueWarning && adsMode !== "mock" && (
+          <div className="mb-4 rounded-md border border-amber-400/20 bg-amber-400/10 px-4 py-3">
+            <p className="text-sm text-amber-200">
+              <strong>Meta revenue unavailable.</strong> Ad spend and purchase data is live, but
+              action_values/revenue are not reported for this account. ROAS will show 0 until
+              Meta shares conversion values.
+            </p>
+          </div>
+        )}
+
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KPICard
             label="Gross revenue"
@@ -181,6 +250,38 @@ export default async function OverviewPage() {
       </section>
 
       <DataTrustPanel items={dataTrustItems} />
+
+      {/* Revenue vs Ad Spend chart */}
+      {revenueVsSpend.length > 0 && (
+        <PageSection
+          title="Revenue vs. Ad Spend"
+          description="Daily gross revenue and ad spend trend from live Stripe and Meta data."
+        >
+          <ComposedChartCard
+            title="Revenue vs. Ad Spend by day"
+            data={revenueVsSpend}
+            xKey="date"
+            bars={[{ key: "adSpend", label: "Ad Spend", color: chartPalette.muted }]}
+            lines={[{ key: "grossRevenue", label: "Gross Revenue", color: chartPalette.primary }]}
+          />
+        </PageSection>
+      )}
+
+      {/* Funnel conversion overview */}
+      {funnelBar.length > 0 && (
+        <PageSection
+          title="Funnel conversion snapshot"
+          description="Leads, purchases, refunds, and failed payments — all from live sources."
+        >
+          <BarChartCard
+            title="Funnel volumes"
+            data={funnelBar}
+            xKey="stage"
+            yKey="count"
+            label="Count"
+          />
+        </PageSection>
+      )}
 
       <PageSection
         title="Warnings and opportunities"

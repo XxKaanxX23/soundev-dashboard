@@ -59,21 +59,33 @@ Routes live under `src/app`:
 
 Reusable dashboard UI lives under `src/components/dashboard`:
 
+**Layout / Navigation**
 - `sidebar.tsx`
 - `header.tsx`
+- `page-section.tsx`
 - `date-range-selector.tsx`
-- `data-mode-badge.tsx`
+
+**Data Display**
 - `data-table.tsx`
 - `kpi-card.tsx`
-- `line-chart-card.tsx`
-- `bar-chart-card.tsx`
 - `status-badge.tsx`
-- `source-connection-card.tsx`
-- `source-freshness.tsx`
-- `data-health-panel.tsx`
-- `next-actions-panel.tsx`
+- `data-mode-badge.tsx`
 - `alert-callout.tsx`
-- `page-section.tsx`
+- `api-state-card.tsx`
+
+**Charts** *(added/expanded in Phase 7D)*
+- `chart-renderers.tsx` — base Recharts renderers (`BarChartRenderer`, `LineChartRenderer`, `ComposedChartRenderer`, `MultiBarChartRenderer`). Also exports `chartPalette` color constants.
+- `bar-chart-card.tsx` — single-series bar chart wrapper
+- `line-chart-card.tsx` — multi-line chart wrapper
+- `multi-bar-chart-card.tsx` — grouped/stacked bar chart wrapper *(Phase 7D)*
+- `composed-chart-card.tsx` — bar + line dual-axis chart wrapper *(Phase 7D)*
+
+**Panels / Status**
+- `source-freshness.tsx` — per-source live/partial/mock/not-connected badge. **Always pass source-specific mode, never the combined page mode.**
+- `source-connection-card.tsx`
+- `data-health-panel.tsx`
+- `data-trust-panel.tsx`
+- `next-actions-panel.tsx`
 
 ### Visual Theme System
 
@@ -119,15 +131,15 @@ Tailwind zinc/sky/indigo/emerald/amber/rose color aliases were tuned toward the 
 
 Server-side data readers live under `src/lib/data`:
 
-- `revenue.ts`
-- `ads.ts`
-- `funnel.ts`
-- `creative.ts`
-- `instagram.ts`
-- `overview.ts`
-- `settings.ts`
-- `freshness.ts`
-- `fallback.ts`
+- `revenue.ts` — Stripe transactions, failed payments, refunds. Exports `getRevenueData()`, `buildRevenueDataFromRows()`, `normalizeTransactions()`.
+- `ads.ts` — Meta Ads metrics, campaigns, ad sets, ads. Exports `getAdsData()`, `buildAdsDataFromRows()`. Returns `metaRevenueWarning: boolean` when spend exists but `revenue_cents = 0`.
+- `funnel.ts` — GoHighLevel contacts and opportunities. Exports `getFunnelData()`, `buildFunnelDataFromRows()`, `normalizeGhlContacts()`, `normalizeGhlOpportunities()`. Returns `opportunitiesNote: string | null` when contacts exist but opportunities are empty.
+- `overview.ts` — Orchestrates all sources into a single page payload. Returns `revenueMode` and `adsMode` alongside combined `mode` so pages can pass source-specific modes to `SourceFreshness` badges.
+- `creative.ts` — Notion creative tracker (mock fallback).
+- `instagram.ts` — Instagram analytics (mock fallback).
+- `settings.ts` — Source connection cards.
+- `freshness.ts` — Per-source sync run health from `sync_runs` table.
+- `fallback.ts` — `DataMode` type, `combineDataModes()`, `warnFallback()` utilities.
 
 The dashboard should read from Supabase when credentials and rows exist. If credentials are missing or tables are empty, it falls back to mock data. The most important rule is: **do not mix fake rows with live data for the same source.**
 
@@ -800,3 +812,27 @@ Next coding agent:
 - Explain changes clearly after implementation.
 - Before touching Next.js App Router behavior, read the relevant local docs under `node_modules/next/dist/docs/` because this project uses a newer Next.js version.
 - For business data, always ask: "Is this live, mock, partial, unavailable, or test data?" The UI should make that answer clear.
+
+## 15. Phase 7D Changelog
+
+### Root Cause Fix
+
+The 'Partial Live Data' false positive on the Overview page was caused by passing the combined page mode to SourceFreshness badges instead of source-specific modes. Fix: getOverviewData() now returns revenueMode and adsMode which are passed directly to Stripe and Meta badges.
+
+### Data Mode Rules
+
+- Stripe: transactions > 0 = live. Only failed/refund rows = partial. No rows = mock.
+- Meta Ads: ad_daily_metrics > 0 with joins = live. Metrics exist, joins missing = partial. No metrics = mock.
+- GHL: contacts > 0 = live. Contacts = 0 = partial. No rows = mock.
+
+### New Features
+
+- metaRevenueWarning flag when Meta spend exists but revenue_cents = 0 (banner shown, mode unchanged)
+- opportunitiesNote for GHL live mode with zero opportunities
+- 5 new chart types across Overview, Revenue, Meta Ads, and Funnel pages
+- MultiBarChartCard and ComposedChartCard new components
+- Diagnostics: Row Counts and Field Coverage sections
+
+### Verification
+
+68 tests passing. Lint clean. Build success.

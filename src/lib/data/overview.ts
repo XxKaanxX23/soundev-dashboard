@@ -525,6 +525,8 @@ export async function getOverviewData() {
 
   return {
     mode,
+    revenueMode: revenue.mode,
+    adsMode: ads.mode,
     overviewMetrics: {
       ...overviewMetrics,
       estimatedProfit,
@@ -535,6 +537,7 @@ export async function getOverviewData() {
     dataTrustItems,
     dashboardSnapshot: revenue.dashboardSnapshot,
     metaAds: ads.metaAds,
+    metaRevenueWarning: ads.metaRevenueWarning,
     metricAlerts: mode === "mock" ? metricAlerts : trustedMetricAlerts,
     nextActions: mode === "mock" ? nextActions : generatedRecommendations,
     utmCoverage: revenue.mode === "mock" ? utmCoverage : liveUtmCoverage,
@@ -542,5 +545,6 @@ export async function getOverviewData() {
     channelRevenue: revenueSeries.channelRevenue,
     dataHealthItems:
       health.mode === "mock" ? dataHealthItems : normalizeDataHealth(health.rows),
+    stripeTransactions: revenue.stripeTransactions,
   };
 }

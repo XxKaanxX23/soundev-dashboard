@@ -39,6 +39,7 @@ const contactColumns: DataTableColumn<FunnelContactRow>[] = [
 
 const opportunityColumns: DataTableColumn<FunnelOpportunityRow>[] = [
   { header: "Stage", accessor: "stage" },
+  { header: "Pipeline", accessor: "pipelineName" },
   { header: "Status", accessor: "status" },
   { header: "Value", accessor: (row) => formatCurrency(row.value), align: "right" },
   { header: "Source", accessor: "source" },
@@ -52,6 +53,7 @@ export default async function FunnelPage() {
     funnelStages,
     mode,
     opportunities,
+    opportunitiesNote,
     overviewMetrics,
     topSources,
     utmCoverage,
@@ -118,6 +120,7 @@ export default async function FunnelPage() {
         </div>
       </PageSection>
 
+      {/* Funnel stage charts */}
       <div className="grid gap-4 xl:grid-cols-[.8fr_1.2fr]">
         <BarChartCard
           title="Funnel stage volume"
@@ -131,31 +134,50 @@ export default async function FunnelPage() {
         </PageSection>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[.8fr_1.2fr]">
-        <PageSection title="Top lead sources">
-          <DataTable
-            columns={sourceColumns}
+      {/* Lead source chart */}
+      {topSources.length > 0 && (
+        <div className="grid gap-4 xl:grid-cols-[.8fr_1.2fr]">
+          <BarChartCard
+            title="Lead volume by source"
             data={topSources}
-            emptyMessage="No live GoHighLevel source data yet."
+            xKey="source"
+            yKey="leads"
+            label="Leads"
           />
-        </PageSection>
-        <PageSection title="Latest contacts">
-          <DataTable
-            columns={contactColumns}
-            data={contacts}
-            getRowId={(row) => row.id}
-            emptyMessage="No live GoHighLevel contacts yet."
-          />
-        </PageSection>
-      </div>
+          <PageSection title="Top lead sources">
+            <DataTable
+              columns={sourceColumns}
+              data={topSources}
+              emptyMessage="No live GoHighLevel source data yet."
+            />
+          </PageSection>
+        </div>
+      )}
 
-      <PageSection title="Latest opportunities">
+      {/* Contacts */}
+      <PageSection title="Latest contacts">
         <DataTable
-          columns={opportunityColumns}
-          data={opportunities}
+          columns={contactColumns}
+          data={contacts}
           getRowId={(row) => row.id}
-          emptyMessage="No live GoHighLevel opportunities yet."
+          emptyMessage="No live GoHighLevel contacts yet."
         />
+      </PageSection>
+
+      {/* Opportunities or empty state */}
+      <PageSection title="Latest opportunities">
+        {opportunitiesNote ? (
+          <div className="rounded-md border border-dashed border-sd-border-strong bg-black/25 px-4 py-6 text-center">
+            <p className="text-sm text-zinc-400">{opportunitiesNote}</p>
+          </div>
+        ) : (
+          <DataTable
+            columns={opportunityColumns}
+            data={opportunities}
+            getRowId={(row) => row.id}
+            emptyMessage="No live GoHighLevel opportunities yet."
+          />
+        )}
       </PageSection>
     </div>
   );

@@ -5,6 +5,8 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  ComposedChart,
+  Legend,
   Line,
   LineChart,
   Tooltip,
@@ -14,13 +16,31 @@ import {
 
 export type ChartDatum = Record<string, string | number>;
 
+export const chartPalette = {
+  primary: "var(--sd-accent)",
+  secondary: "var(--sd-accent-bright)",
+  muted: "#4a6fa5",
+  indigo: "#6366f1",
+  steel: "#64748b",
+  warning: "#d97706",
+  danger: "#e11d48",
+};
+
 const chartColors = {
   grid: "color-mix(in srgb, var(--sd-border-strong) 55%, transparent)",
   text: "var(--sd-text-muted)",
   tooltipBackground: "var(--sd-surface)",
   tooltipBorder: "var(--sd-border-strong)",
   tooltipText: "var(--sd-text)",
-  primary: "var(--sd-accent)",
+  primary: chartPalette.primary,
+};
+
+const tooltipStyle = {
+  background: chartColors.tooltipBackground,
+  border: `1px solid ${chartColors.tooltipBorder}`,
+  borderRadius: 8,
+  color: chartColors.tooltipText,
+  fontSize: 12,
 };
 
 function MeasuredChart({
@@ -83,22 +103,59 @@ export function BarChartRenderer({
           margin={{ left: 0, right: 8, top: 8 }}
         >
           <CartesianGrid stroke={chartColors.grid} vertical={false} />
-          <XAxis dataKey={xKey} stroke={chartColors.text} tickLine={false} />
-          <YAxis stroke={chartColors.text} tickLine={false} width={48} />
-          <Tooltip
-            contentStyle={{
-              background: chartColors.tooltipBackground,
-              border: `1px solid ${chartColors.tooltipBorder}`,
-              borderRadius: 8,
-              color: chartColors.tooltipText,
-            }}
-          />
+          <XAxis dataKey={xKey} stroke={chartColors.text} tickLine={false} tick={{ fontSize: 11 }} />
+          <YAxis stroke={chartColors.text} tickLine={false} width={48} tick={{ fontSize: 11 }} />
+          <Tooltip contentStyle={tooltipStyle} />
           <Bar
             dataKey={yKey}
             name={label ?? yKey}
             fill={chartColors.primary}
             radius={[4, 4, 0, 0]}
           />
+        </BarChart>
+      )}
+    </MeasuredChart>
+  );
+}
+
+export function MultiBarChartRenderer({
+  data,
+  xKey,
+  bars,
+}: {
+  data: ChartDatum[];
+  xKey: string;
+  bars: {
+    key: string;
+    label: string;
+    color?: string;
+  }[];
+}) {
+  return (
+    <MeasuredChart>
+      {({ width, height }) => (
+        <BarChart
+          width={width}
+          height={height}
+          data={data}
+          margin={{ left: 0, right: 8, top: 8 }}
+        >
+          <CartesianGrid stroke={chartColors.grid} vertical={false} />
+          <XAxis dataKey={xKey} stroke={chartColors.text} tickLine={false} tick={{ fontSize: 11 }} />
+          <YAxis stroke={chartColors.text} tickLine={false} width={48} tick={{ fontSize: 11 }} />
+          <Tooltip contentStyle={tooltipStyle} />
+          <Legend
+            wrapperStyle={{ fontSize: 11, color: chartColors.text }}
+          />
+          {bars.map((bar) => (
+            <Bar
+              key={bar.key}
+              dataKey={bar.key}
+              name={bar.label}
+              fill={bar.color ?? chartColors.primary}
+              radius={[4, 4, 0, 0]}
+            />
+          ))}
         </BarChart>
       )}
     </MeasuredChart>
@@ -128,16 +185,10 @@ export function LineChartRenderer({
           margin={{ left: 0, right: 8, top: 8 }}
         >
           <CartesianGrid stroke={chartColors.grid} vertical={false} />
-          <XAxis dataKey={xKey} stroke={chartColors.text} tickLine={false} />
-          <YAxis stroke={chartColors.text} tickLine={false} width={48} />
-          <Tooltip
-            contentStyle={{
-              background: chartColors.tooltipBackground,
-              border: `1px solid ${chartColors.tooltipBorder}`,
-              borderRadius: 8,
-              color: chartColors.tooltipText,
-            }}
-          />
+          <XAxis dataKey={xKey} stroke={chartColors.text} tickLine={false} tick={{ fontSize: 11 }} />
+          <YAxis stroke={chartColors.text} tickLine={false} width={48} tick={{ fontSize: 11 }} />
+          <Tooltip contentStyle={tooltipStyle} />
+          <Legend wrapperStyle={{ fontSize: 11, color: chartColors.text }} />
           {lines.map((line) => (
             <Line
               key={line.label}
@@ -150,6 +201,83 @@ export function LineChartRenderer({
             />
           ))}
         </LineChart>
+      )}
+    </MeasuredChart>
+  );
+}
+
+export function ComposedChartRenderer({
+  data,
+  xKey,
+  lines = [],
+  bars = [],
+}: {
+  data: ChartDatum[];
+  xKey: string;
+  lines?: {
+    key: string;
+    label: string;
+    color?: string;
+    yAxisId?: string;
+  }[];
+  bars?: {
+    key: string;
+    label: string;
+    color?: string;
+    yAxisId?: string;
+  }[];
+}) {
+  const hasSecondAxis =
+    [...lines, ...bars].some((s) => s.yAxisId === "right");
+
+  return (
+    <MeasuredChart>
+      {({ width, height }) => (
+        <ComposedChart
+          width={width}
+          height={height}
+          data={data}
+          margin={{ left: 0, right: hasSecondAxis ? 48 : 8, top: 8 }}
+        >
+          <CartesianGrid stroke={chartColors.grid} vertical={false} />
+          <XAxis dataKey={xKey} stroke={chartColors.text} tickLine={false} tick={{ fontSize: 11 }} />
+          <YAxis yAxisId="left" stroke={chartColors.text} tickLine={false} width={48} tick={{ fontSize: 11 }} />
+          {hasSecondAxis && (
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              stroke={chartColors.text}
+              tickLine={false}
+              width={40}
+              tick={{ fontSize: 11 }}
+            />
+          )}
+          <Tooltip contentStyle={tooltipStyle} />
+          <Legend wrapperStyle={{ fontSize: 11, color: chartColors.text }} />
+          {bars.map((bar) => (
+            <Bar
+              key={bar.key}
+              yAxisId={bar.yAxisId ?? "left"}
+              dataKey={bar.key}
+              name={bar.label}
+              fill={bar.color ?? chartPalette.muted}
+              radius={[3, 3, 0, 0]}
+              opacity={0.8}
+            />
+          ))}
+          {lines.map((line) => (
+            <Line
+              key={line.key}
+              yAxisId={line.yAxisId ?? "left"}
+              type="monotone"
+              dataKey={line.key}
+              name={line.label}
+              stroke={line.color ?? chartColors.primary}
+              strokeWidth={2}
+              dot={false}
+            />
+          ))}
+        </ComposedChart>
       )}
     </MeasuredChart>
   );

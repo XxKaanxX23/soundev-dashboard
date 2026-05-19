@@ -41,6 +41,23 @@ export type DiagnosticsData = {
   latestGhlContact: DiagnosticSummary | null;
   latestGhlOpportunity: DiagnosticSummary | null;
   ghlErrorState: DiagnosticSummary | null;
+  rowCounts: {
+    transactions: number;
+    failedPayments: number;
+    refunds: number;
+    adDailyMetrics: number;
+    ads: number;
+    adSets: number;
+    adCampaigns: number;
+    ghlContacts: number;
+    ghlOpportunities: number;
+  };
+  fieldCoverage: {
+    stripeUtmCoverage: number;
+    metaPurchaseValueCoverage: number;
+    ghlUtmCoverage: number;
+    opportunityCount: number;
+  };
 };
 
 type DiagnosticRows = {
@@ -199,11 +216,117 @@ export function normalizeDiagnosticRows(rows: DiagnosticRows) {
   };
 }
 
+type SupabaseClient = NonNullable<ReturnType<typeof getSupabaseServiceRoleClient>>;
+
+async function fetchRowCounts(supabase: SupabaseClient) {
+  const countOf = async (table: string) => {
+    const { count } = await supabase
+      .from(table)
+      .select("id", { count: "exact", head: true });
+    return count ?? 0;
+  };
+
+  const [
+    transactions,
+    failedPayments,
+    refunds,
+    adDailyMetrics,
+    ads,
+    adSets,
+    adCampaigns,
+    ghlContacts,
+    ghlOpportunities,
+  ] = await Promise.all([
+    countOf("transactions"),
+    countOf("failed_payments"),
+    countOf("refunds"),
+    countOf("ad_daily_metrics"),
+    countOf("ads"),
+    countOf("ad_sets"),
+    countOf("ad_campaigns"),
+    countOf("ghl_contacts"),
+    countOf("ghl_opportunities"),
+  ]);
+
+  return {
+    transactions,
+    failedPayments,
+    refunds,
+    adDailyMetrics,
+    ads,
+    adSets,
+    adCampaigns,
+    ghlContacts,
+    ghlOpportunities,
+  };
+}
+
+async function fetchFieldCoverage(supabase: SupabaseClient) {
+  const [
+    totalTransactions,
+    utmTaggedTransactions,
+    totalMetaMetrics,
+    metaWithRevenue,
+    totalGhlContacts,
+    ghlWithUtm,
+    ghlOpportunities,
+  ] = await Promise.all([
+    supabase.from("transactions").select("id", { count: "exact", head: true }),
+    supabase
+      .from("transactions")
+      .select("id", { count: "exact", head: true })
+      .not("utm_source", "is", null),
+    supabase.from("ad_daily_metrics").select("id", { count: "exact", head: true }),
+    supabase
+      .from("ad_daily_metrics")
+      .select("id", { count: "exact", head: true })
+      .gt("revenue_cents", 0),
+    supabase.from("ghl_contacts").select("id", { count: "exact", head: true }),
+    supabase
+      .from("ghl_contacts")
+      .select("id", { count: "exact", head: true })
+      .not("utm_source", "is", null),
+    supabase.from("ghl_opportunities").select("id", { count: "exact", head: true }),
+  ]);
+
+  const t = totalTransactions.count ?? 0;
+  const u = utmTaggedTransactions.count ?? 0;
+  const m = totalMetaMetrics.count ?? 0;
+  const mv = metaWithRevenue.count ?? 0;
+  const g = totalGhlContacts.count ?? 0;
+  const gu = ghlWithUtm.count ?? 0;
+
+  return {
+    stripeUtmCoverage: t === 0 ? 0 : u / t,
+    metaPurchaseValueCoverage: m === 0 ? 0 : mv / m,
+    ghlUtmCoverage: g === 0 ? 0 : gu / g,
+    opportunityCount: ghlOpportunities.count ?? 0,
+  };
+}
+
 export async function getDiagnosticsData(): Promise<DiagnosticsData> {
+
   const env = getDiagnosticsEnvStatus();
   const supabase = getSupabaseServiceRoleClient();
 
   if (!supabase) {
+    const emptyRowCounts = {
+      transactions: 0,
+      failedPayments: 0,
+      refunds: 0,
+      adDailyMetrics: 0,
+      ads: 0,
+      adSets: 0,
+      adCampaigns: 0,
+      ghlContacts: 0,
+      ghlOpportunities: 0,
+    };
+    const emptyFieldCoverage = {
+      stripeUtmCoverage: 0,
+      metaPurchaseValueCoverage: 0,
+      ghlUtmCoverage: 0,
+      opportunityCount: 0,
+    };
     return {
       env,
       supabaseAdminClientAvailable: false,
@@ -219,6 +342,8 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
         ghlContact: null,
         ghlOpportunity: null,
       }),
+      rowCounts: emptyRowCounts,
+      fieldCoverage: emptyFieldCoverage,
     };
   }
 
@@ -328,23 +453,25 @@ export async function getDiagnosticsData(): Promise<DiagnosticsData> {
           ? null
           : (ghlOpportunity.data as GhlOpportunity | null),
       }),
+      rowCounts: await fetchRowCounts(supabase),
+      fieldCoverage: await fetchFieldCoverage(supabase),
     };
   } catch {
+    const emptyRowCounts = {
+      transactions: 0, failedPayments: 0, refunds: 0,
+      adDailyMetrics: 0, ads: 0, adSets: 0, adCampaigns: 0,
+      ghlContacts: 0, ghlOpportunities: 0,
+    };
     return {
       env,
       supabaseAdminClientAvailable: false,
       ...normalizeDiagnosticRows({
-        syncRun: null,
-        transaction: null,
-        failedPayment: null,
-        refund: null,
-        stripeBackfillSyncRun: null,
-        metaSyncRun: null,
-        metaMetric: null,
-        ghlSyncRun: null,
-        ghlContact: null,
-        ghlOpportunity: null,
+        syncRun: null, transaction: null, failedPayment: null, refund: null,
+        stripeBackfillSyncRun: null, metaSyncRun: null, metaMetric: null,
+        ghlSyncRun: null, ghlContact: null, ghlOpportunity: null,
       }),
+      rowCounts: emptyRowCounts,
+      fieldCoverage: { stripeUtmCoverage: 0, metaPurchaseValueCoverage: 0, ghlUtmCoverage: 0, opportunityCount: 0 },
     };
   }
 }

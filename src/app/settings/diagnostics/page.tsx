@@ -399,6 +399,108 @@ export default async function DiagnosticsPage() {
           </div>
         </section>
       </PageSection>
+
+      {/* Row counts section */}
+      <PageSection title="Row Counts" description="Total rows in each synced table in Supabase.">
+        <div className="overflow-hidden rounded-lg border border-sd-border-strong">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-sd-border-strong">
+                <th className="px-4 py-3 text-left font-medium text-zinc-400">Table</th>
+                <th className="px-4 py-3 text-right font-medium text-zinc-400">Rows</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { label: "transactions", count: diagnostics.rowCounts.transactions },
+                { label: "failed_payments", count: diagnostics.rowCounts.failedPayments },
+                { label: "refunds", count: diagnostics.rowCounts.refunds },
+                { label: "ad_daily_metrics", count: diagnostics.rowCounts.adDailyMetrics },
+                { label: "ads", count: diagnostics.rowCounts.ads },
+                { label: "ad_sets", count: diagnostics.rowCounts.adSets },
+                { label: "ad_campaigns", count: diagnostics.rowCounts.adCampaigns },
+                { label: "ghl_contacts", count: diagnostics.rowCounts.ghlContacts },
+                { label: "ghl_opportunities", count: diagnostics.rowCounts.ghlOpportunities },
+              ].map((row) => (
+                <tr
+                  key={row.label}
+                  className="border-b border-sd-border-strong/50 last:border-b-0"
+                >
+                  <td className="px-4 py-3 font-mono text-zinc-300">{row.label}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-zinc-50">
+                    {row.count.toLocaleString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </PageSection>
+
+      {/* Field coverage section */}
+      <PageSection
+        title="Field Coverage"
+        description="What percentage of records have key attribution fields populated."
+      >
+        <div className="overflow-hidden rounded-lg border border-sd-border-strong">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-sd-border-strong">
+                <th className="px-4 py-3 text-left font-medium text-zinc-400">Field</th>
+                <th className="px-4 py-3 text-left font-medium text-zinc-400">Description</th>
+                <th className="px-4 py-3 text-right font-medium text-zinc-400">Coverage</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                {
+                  label: "Stripe UTM coverage",
+                  description: "transactions with utm_source populated",
+                  value: diagnostics.fieldCoverage.stripeUtmCoverage,
+                },
+                {
+                  label: "Meta purchase value",
+                  description: "ad_daily_metrics rows with revenue_cents > 0",
+                  value: diagnostics.fieldCoverage.metaPurchaseValueCoverage,
+                },
+                {
+                  label: "GHL UTM coverage",
+                  description: "ghl_contacts with utm_source populated",
+                  value: diagnostics.fieldCoverage.ghlUtmCoverage,
+                },
+              ].map((row) => (
+                <tr
+                  key={row.label}
+                  className="border-b border-sd-border-strong/50 last:border-b-0"
+                >
+                  <td className="px-4 py-3 font-medium text-zinc-300">{row.label}</td>
+                  <td className="px-4 py-3 text-zinc-500">{row.description}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    <span
+                      className={
+                        row.value === 0
+                          ? "text-red-400"
+                          : row.value < 0.5
+                            ? "text-amber-400"
+                            : "text-emerald-400"
+                      }
+                    >
+                      {Math.round(row.value * 100)}%
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              <tr className="border-b border-sd-border-strong/50 last:border-b-0">
+                <td className="px-4 py-3 font-medium text-zinc-300">GHL opportunities</td>
+                <td className="px-4 py-3 text-zinc-500">total ghl_opportunities rows</td>
+                <td className="px-4 py-3 text-right tabular-nums text-zinc-50">
+                  {diagnostics.fieldCoverage.opportunityCount.toLocaleString()}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </PageSection>
     </div>
   );
 }
