@@ -73,6 +73,7 @@ GoHighLevel owns:
 GoHighLevel caveats:
 
 - Do not assume the API exposes all analytics shown inside the GoHighLevel dashboard UI.
+- Use `/api/debug/ghl-capabilities` and `GHL_CAPABILITY_AUDIT.md` to verify API-accessible fields before promoting any GHL form, funnel page, order, transaction, or analytics field into source-of-truth status.
 - Activity/event ingestion still needs audit.
 - If GHL cannot expose landing page analytics, GA4 direct tracking is required.
 

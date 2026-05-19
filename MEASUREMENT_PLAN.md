@@ -159,6 +159,16 @@ Examples:
 
 GoHighLevel has built-in dashboards, but the API may not expose everything shown in the UI. Do not assume GHL exposes dashboard analytics through the API.
 
+Phase 8C implementation status: `src/lib/ghl/audit.ts` and `/api/debug/ghl-capabilities` provide a read-only, redacted audit of the current GoHighLevel Private Integration token. The route probes small samples from GHL endpoints and reports endpoint-level success, field names, UTM/click-ID detection, and whether direct GA4 is still recommended. It does not write to Supabase and it does not expose secrets or full customer details.
+
+Run locally:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/debug/ghl-capabilities"
+```
+
+Record findings in `GHL_CAPABILITY_AUDIT.md` after running with real credentials.
+
 Audit whether the current Private Integration token and location can pull:
 
 - Contacts

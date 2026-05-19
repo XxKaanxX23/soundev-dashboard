@@ -176,6 +176,7 @@ API routes:
 - `src/app/api/sync/ghl/route.ts`
 - `src/app/api/health/stripe/route.ts`
 - `src/app/api/debug/data-status/route.ts`
+- `src/app/api/debug/ghl-capabilities/route.ts`
 
 Sync routes write to Supabase using the service-role client when configured. They must not expose secrets.
 
@@ -188,6 +189,8 @@ Diagnostics route:
 - Data helper: `src/lib/diagnostics.ts`
 
 It shows env detection, admin client availability, last sync run, last Stripe transaction, last failed payment, last refund, latest Meta sync, latest Meta metric row, latest GoHighLevel sync/contact/opportunity rows, and error states. It never shows secret values.
+
+Phase 8C also adds `/api/debug/ghl-capabilities`, a POST-only read-only audit route that probes GoHighLevel API capabilities and returns redacted endpoint status. It does not write to Supabase and must not expose customer details or raw payloads.
 
 ### Source Freshness System
 
@@ -491,6 +494,31 @@ Known limitations:
 - GoHighLevel leads use `first_seen_at`; form submission and funnel event behavior still needs capability audit.
 - Estimated profit is not accounting-final and does not include taxes, contractors, chargebacks, or unknown expenses.
 
+### Phase 8C: GoHighLevel Capability Audit and Field Validation
+
+Added a read-only, server-side audit path to discover what the current GoHighLevel Private Integration token can actually access.
+
+New files:
+
+- `src/lib/ghl/audit.ts`
+- `src/app/api/debug/ghl-capabilities/route.ts`
+- `GHL_CAPABILITY_AUDIT.md`
+
+Behavior:
+
+- Uses `GHL_API_KEY` and `GHL_LOCATION_ID`.
+- Probes contacts, opportunities, forms, form submissions, funnels, funnel pages, orders, transactions, custom fields, and location metadata.
+- Reports endpoint-level success/failure, counts, field names, UTM/click-ID detection, and a summary recommendation.
+- Redacts samples and does not expose API keys, full names, full emails, phone numbers, or raw payloads.
+- Does not write audit results to Supabase.
+- Does not change existing GoHighLevel sync behavior.
+
+Known limitations:
+
+- The audit route must be run locally with real credentials before final decisions are made.
+- Passing endpoint checks does not prove GHL metrics match the GHL dashboard UI; important analytics still need manual validation against the UI.
+- If landing page views or checkout starts are not exposed, direct GA4 tracking remains required.
+
 ## 6. Current Integrations
 
 ### Stripe
@@ -597,12 +625,14 @@ What works right now:
 - Manual sync foundation exists.
 - `/funnel` reads live GoHighLevel contacts/opportunities when rows exist.
 - Overview shows real leads, opportunity/checkout proxy metrics, and lead-to-purchase only when GoHighLevel rows exist.
+- `/api/debug/ghl-capabilities` can audit GHL endpoint access and field availability without writing data.
 
 Known issue/watchout:
 
 - GoHighLevel field shapes vary across accounts and API versions; verify contact/opportunity mappings against the production location.
 - UTM fields depend on the funnel passing attribution into GoHighLevel.
 - No scheduled sync exists yet.
+- GHL dashboard analytics must not be treated as API-accessible until the capability audit confirms exposed fields and counts are validated against the GHL UI.
 
 ### Supabase
 
@@ -795,52 +825,52 @@ Needs work:
 
 ## 10. Current Best Next Task
 
-Recommended next task: **Phase 8C: GoHighLevel Capability Audit and Field Validation**
+Recommended next task: **Run the Phase 8C audit, then choose Phase 8D based on results**
 
 Goal:
 
-- Verify which GoHighLevel objects and analytics are actually accessible through the Private Integration API.
-- Harden GHL contact, opportunity, source, custom field, and UTM mapping against production payloads.
-- Decide whether GHL can provide forms, form submissions, funnel pages, payments/orders, and page/funnel analytics.
+- Run `/api/debug/ghl-capabilities` locally with real GoHighLevel credentials.
+- Fill in `GHL_CAPABILITY_AUDIT.md` with endpoint availability and useful fields.
+- Decide whether GHL can provide page/funnel analytics or whether direct GA4 must be implemented next.
 - Keep the Morning Brief source-of-truth behavior intact.
 
 Use this exact prompt:
 
 ```text
-Implement Phase 8C: GoHighLevel capability audit and field validation.
+Run and interpret the Phase 8C GoHighLevel capability audit.
 
 Goals:
-1. Verify what GoHighLevel can actually expose through the current Private Integration API.
-2. Harden field mappings for contacts, opportunities, custom fields, tags, source fields, and UTM attribution.
-3. Decide whether GoHighLevel can supply form submissions, funnel pages, payments/orders, transactions, and page/funnel analytics.
+1. Run the existing GoHighLevel capability audit route with real credentials.
+2. Compare returned endpoint field names to the GoHighLevel dashboard UI.
+3. Decide whether GHL can supply landing page views, CTA clicks, checkout starts, and attribution fields.
 
 Tasks:
 1. Read MEASUREMENT_PLAN.md and SOURCE_OF_TRUTH.md before changing code.
-2. Run manual GoHighLevel sync with production env vars.
-3. Inspect latest ghl_contacts, ghl_opportunities, and sync_runs rows.
-4. Compare normalized dashboard rows to GoHighLevel UI records.
-5. Audit whether the API can pull contacts, opportunities, forms, form submissions, funnels, funnel pages, payments/orders, transactions, custom fields, attribution/source fields, UTM fields, page/funnel analytics, Google Analytics-connected metrics, and Meta dashboard-connected metrics.
-6. Improve mappings only where verified by real payload shape.
-7. Document what GHL cannot expose and whether GA4 direct is required for landing page analytics.
-8. Add tests for any mapping changes.
-9. Run:
+2. Start the app with GHL_API_KEY and GHL_LOCATION_ID configured.
+3. Run:
+   Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/debug/ghl-capabilities"
+4. Review endpoint statuses, fieldNames, utmFieldsFound, and summary.
+5. Update GHL_CAPABILITY_AUDIT.md with redacted findings only.
+6. If GHL exposes reliable page analytics and checkout starts, plan GHL funnel analytics validation.
+7. If not, proceed to Phase 8D: GA4 tracking specification and tag plan.
+8. Run:
    npm test
    npm run lint
    npm run build
 
 Important:
 Do not change Stripe, Meta, or GoHighLevel sync behavior.
-Do not expose GHL_API_KEY client-side.
+Do not expose GHL_API_KEY or customer details.
 Do not add scheduled sync yet.
 Do not add GA4 API integration yet.
 ```
 
-## 11. Roadmap After Phase 8B
+## 11. Roadmap After Phase 8C
 
 Recommended order:
 
-1. Phase 8C: GoHighLevel capability audit and field validation
-2. Phase 8D: GA4 tracking specification and tag plan
+1. Run Phase 8C audit with real credentials and record redacted findings
+2. Phase 8D: GA4 tracking specification and tag plan, unless the audit proves GHL can reliably provide page/funnel analytics
 3. Phase 9: Basic auth / password gate
 4. Phase 10: Deploy to Vercel
 5. Phase 11: Scheduled syncs
@@ -888,6 +918,12 @@ GoHighLevel sync:
 
 ```powershell
 Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/sync/ghl"
+```
+
+GoHighLevel capability audit:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/debug/ghl-capabilities"
 ```
 
 Stripe historical sync:

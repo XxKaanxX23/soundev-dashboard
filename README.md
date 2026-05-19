@@ -232,6 +232,20 @@ The sync pulls contacts and opportunities where supported, then upserts into:
 
 Check `/settings/diagnostics` after running the sync. Diagnostics shows GoHighLevel env detection, latest GHL sync run, latest contact, latest opportunity, and last error state. The Funnel page uses live GoHighLevel rows when they exist and otherwise falls back to mock/demo mode.
 
+### GoHighLevel Capability Audit
+
+Phase 8C adds a read-only audit endpoint to discover which GoHighLevel objects and analytics are actually exposed by the Private Integration API.
+
+Run it after starting the local app:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/debug/ghl-capabilities"
+```
+
+The audit checks contacts, opportunities, forms, form submissions, funnels, funnel pages, orders, transactions, custom fields, and location metadata. It returns endpoint-level status, field names, UTM/click-ID detection, and a recommendation about whether direct GA4 is still needed for landing page views, CTA clicks, and checkout starts.
+
+The audit does not write to Supabase and does not expose the GoHighLevel API key, full customer names, full emails, phone numbers, or raw payloads. See `GHL_CAPABILITY_AUDIT.md` for the interpretation guide.
+
 ### Webhook Endpoint
 
 Create a Stripe webhook endpoint that points to:
